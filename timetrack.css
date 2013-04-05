@@ -1,0 +1,36 @@
+.right-item {
+	float: right;
+}
+
+.timeTrack {
+	padding-top: 5px;
+	padding-left: 10px;
+}
+
+.timeTrack input {
+	text-align: right;
+
+}
+
+.report-head {
+	padding-top: 5px;
+	padding-left: 10px;
+	display: inline-block;
+	font-weight: bold;
+}
+
+#taist-timetracker-currentTask {
+	padding-left:10px;
+	font-size:13px;
+}
+
+#taist-timetracker-currentCaption {
+	color:rgb(113, 118, 122);
+	font-family:'lucida grande', 'Segoe UI', arial, verdana, 'lucida sans unicode', tahoma, sans-serif;
+	font-size:13px;
+}
+
+.timer-icon {
+	cursor: pointer;
+	margin-right: 10px;
+}

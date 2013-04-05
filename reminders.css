@@ -1,0 +1,16 @@
+.taist-reminders-container {
+	padding-left: 20px;
+}
+
+.taist-reminders-time-input {
+}
+
+.taist-reminders-reminder-icon {
+	height: 16px;
+	width: 16px;
+}
+
+.taist-reminders-linkText {
+	border-bottom-style: dashed;
+	border-bottom-width: 1px;
+}
