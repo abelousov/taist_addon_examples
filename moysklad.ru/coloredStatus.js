@@ -79,8 +79,8 @@
     return $('table.b-document-table').find('td:not([style*="background"])').attr('style', 'background:#FFFFFF !important');
   };
   waitDraw = function() {
-    utils.wait.repeat((function() {
-      return $('table.b-document-table').find('td:not([style*="background"])').length !== 0;
+    utils.wait.elementRender((function() {
+      return ($('table.b-document-table')).find('td:not([style*="background"])');
     }), startDraw);
     return utils.wait.hashChange(startDraw);
   };

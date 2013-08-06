@@ -56,7 +56,8 @@
 		$('table.b-document-table').find('td:not([style*="background"])').attr('style', 'background:#FFFFFF !important')
 
 	waitDraw = ->
-		utils.wait.repeat (-> $('table.b-document-table').find('td:not([style*="background"])').length != 0), startDraw
+		#TODO: попробовать find заменить на единый селектор
+		utils.wait.elementRender (-> ($ 'table.b-document-table').find 'td:not([style*="background"])'), startDraw
 		utils.wait.hashChange startDraw
 
 	startDrawCollorPicker = ->
