@@ -1,6 +1,6 @@
 
 (function() {
-  var docMap, getColorOfStatus, getColorOfStatusByHash, getCompanyName, getUserSettings, setUserSettings, start, startDraw, startDrawButton, startDrawCollorPicker, userSettings, utils, waitDraw, waitDrawButton, waitDrawCollorPicker;
+  var docMap, getColorOfStatus, getColorOfStatusByHash, getCompanyName, getUserSettings, setUserSettings, start, startDraw, startDrawButton, startDrawCollorPicker, userSettings, utils, waitDraw, waitDrawButton, waitDrawColorPicker;
   utils = null;
   userSettings = [];
   start = function(utilities) {
@@ -9,7 +9,7 @@
       return getCompanyName().length > 0;
     }), function() {
       getUserSettings();
-      waitDrawCollorPicker();
+      waitDrawColorPicker();
       waitDrawButton();
       return waitDraw();
     });
@@ -138,13 +138,13 @@
     }
     return _results;
   };
-  waitDrawCollorPicker = function() {
+  waitDrawColorPicker = function() {
     return utils.wait.once((function() {
       return $(location).attr('href').lastIndexOf('app/admin/#states') > 0 && ($('input.gwt-TextBox[size="40"]')[0] != null);
     }), function() {
       return setTimeout((function() {
         startDrawCollorPicker();
-        return waitDrawCollorPicker();
+        return waitDrawColorPicker();
       }), 0);
     });
   };

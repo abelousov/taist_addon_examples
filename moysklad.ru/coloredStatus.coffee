@@ -6,7 +6,7 @@
 		utils = utilities
 		utils.wait.once (->getCompanyName().length > 0), ->
 			getUserSettings()
-			waitDrawCollorPicker()
+			waitDrawColorPicker()
 			waitDrawButton()
 			waitDraw()
 
@@ -96,11 +96,11 @@
 					curDiv.attr('check', 'true')
 
 
-	waitDrawCollorPicker = ->
+	waitDrawColorPicker = ->
 		utils.wait.once (-> $(location).attr('href').lastIndexOf('app/admin/#states') > 0 && $('input.gwt-TextBox[size="40"]')[0]?), ->
 			setTimeout (->
 				startDrawCollorPicker()
-				waitDrawCollorPicker()), 0
+				waitDrawColorPicker()), 0
 
 	startDrawButton = ->
 		for status in $('.b-popup-button-green:not("[_taistCheck]")')
