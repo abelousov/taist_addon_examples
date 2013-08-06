@@ -9,12 +9,8 @@
 			waitDrawCollorPicker()
 			waitDrawButton()
 			waitDraw()
-			waitChangeHash()
 
 	getCompanyName = -> $('.companyName>span').text()
-
-	needdraw = true
-	prevHash = ''
 
 	getUserSettings = ->
 		utils.userData.get '', ((error, value)-> userSettings = value), getCompanyName()
@@ -58,17 +54,10 @@
 
 
 		$('table.b-document-table').find('td:not([style*="background"])').attr('style', 'background:#FFFFFF !important')
-		needdraw = false
 
 	waitDraw = ->
-		utils.wait.repeat (-> $('table.b-document-table').find('td:not([style*="background"])').length != 0 || needdraw), startDraw
-
-	startChangeHash = ->
-		prevHash = $(location).attr('hash')
-		needdraw = true
-
-	waitChangeHash = ->
-		utils.wait.repeat (-> $(location).attr('hash') != prevHash), startChangeHash
+		utils.wait.repeat (-> $('table.b-document-table').find('td:not([style*="background"])').length != 0), startDraw
+		utils.wait.hashChange startDraw
 
 	startDrawCollorPicker = ->
 		i=0
