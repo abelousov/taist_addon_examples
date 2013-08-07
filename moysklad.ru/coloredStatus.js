@@ -148,22 +148,21 @@
       }), 0);
     });
   };
-  startDrawButton = function() {
-    var curDiv, newSaveButton, status, _i, _len, _ref, _results;
-    _ref = $('.b-popup-button-green:not("[_taistCheck]")');
+  startDrawButton = function(saveButton) {
+    var curDiv, newSaveButton, status, _i, _len, _results;
     _results = [];
-    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-      status = _ref[_i];
+    for (_i = 0, _len = saveButton.length; _i < _len; _i++) {
+      status = saveButton[_i];
       curDiv = $(status);
       newSaveButton = $('<div class="b-popup-button b-popup-button-green b-popup-button-enabled" _taistCheck id="saveTaistStatus"><table><tr><td><span>Сохранить</span></td></tr></table></div>');
       curDiv.before(newSaveButton);
       newSaveButton.bind('click', function() {
-        var currentColor, currentDocType, input, inputObj, key, value, _j, _len2, _ref2;
+        var currentColor, currentDocType, input, inputObj, key, value, _j, _len2, _ref;
         utils.localStorage.set('saveColor', 'Y');
         currentDocType = $('.gwt-TreeItem-selected').text();
-        _ref2 = $('[colorPId]');
-        for (_j = 0, _len2 = _ref2.length; _j < _len2; _j++) {
-          inputObj = _ref2[_j];
+        _ref = $('[colorPId]');
+        for (_j = 0, _len2 = _ref.length; _j < _len2; _j++) {
+          inputObj = _ref[_j];
           input = $(inputObj);
           value = input.val();
           if (value.length) {
@@ -197,8 +196,8 @@
   };
   saveButtonSelector = '.b-popup-button-green:not("[_taistCheck]")';
   waitDrawButton = function() {
-    return utils.wait.elementRender(saveButtonSelector, function() {
-      if (onAdminPage()) return startDrawButton();
+    return utils.wait.elementRender(saveButtonSelector, function(saveButton) {
+      if (onAdminPage()) return startDrawButton(saveButton);
     });
   };
   onAdminPage = function() {

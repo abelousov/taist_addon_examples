@@ -103,8 +103,8 @@
 				startDrawCollorPicker()
 				waitDrawColorPicker()), 0
 
-	startDrawButton = ->
-		for status in $('.b-popup-button-green:not("[_taistCheck]")')
+	startDrawButton = (saveButton) ->
+		for status in saveButton
 			curDiv = $(status)
 			newSaveButton = $('<div class="b-popup-button b-popup-button-green b-popup-button-enabled" _taistCheck id="saveTaistStatus"><table><tr><td><span>Сохранить</span></td></tr></table></div>')
 			curDiv.before(newSaveButton)
@@ -142,9 +142,9 @@
 	saveButtonSelector = '.b-popup-button-green:not("[_taistCheck]")'
 
 	waitDrawButton = ->
-		utils.wait.elementRender saveButtonSelector, ->
+		utils.wait.elementRender saveButtonSelector, (saveButton) ->
 			if onAdminPage()
-				startDrawButton()
+				startDrawButton saveButton
 
 	onAdminPage = -> location.href.lastIndexOf('app/admin/#states') > 0
 
