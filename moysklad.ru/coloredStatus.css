@@ -65,11 +65,6 @@
 	background-color: #E4F1FA !important;
 }
 
-.invisibleIframe {
-	position: absolute;
-	visibility: hidden;
-}
-
 tr.current-row {
 	border: 2px solid #898989 !important;
 	border-right: 2px solid #898989 !important;

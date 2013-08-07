@@ -150,7 +150,7 @@
   };
   startDrawButton = function(saveButton) {
     var newSaveButton;
-    newSaveButton = $('<div class="b-popup-button b-popup-button-green b-popup-button-enabled" _taistCheck id="saveTaistStatus"><table><tr><td><span>Сохранить</span></td></tr></table></div>');
+    newSaveButton = $('<div class="b-popup-button b-popup-button-green b-popup-button-enabled" _taistCheck><table><tr><td><span>Сохранить</span></td></tr></table></div>');
     saveButton.before(newSaveButton);
     newSaveButton.bind('click', function() {
       var currentColor, currentDocType, input, inputObj, key, value, _i, _len, _ref;
