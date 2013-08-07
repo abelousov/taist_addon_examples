@@ -149,50 +149,44 @@
     });
   };
   startDrawButton = function(saveButton) {
-    var curDiv, newSaveButton, status, _i, _len, _results;
-    _results = [];
-    for (_i = 0, _len = saveButton.length; _i < _len; _i++) {
-      status = saveButton[_i];
-      curDiv = $(status);
-      newSaveButton = $('<div class="b-popup-button b-popup-button-green b-popup-button-enabled" _taistCheck id="saveTaistStatus"><table><tr><td><span>Сохранить</span></td></tr></table></div>');
-      curDiv.before(newSaveButton);
-      newSaveButton.bind('click', function() {
-        var currentColor, currentDocType, input, inputObj, key, value, _j, _len2, _ref;
-        utils.localStorage.set('saveColor', 'Y');
-        currentDocType = ($('.gwt-TreeItem-selected')).text();
-        _ref = $('[colorPId]');
-        for (_j = 0, _len2 = _ref.length; _j < _len2; _j++) {
-          inputObj = _ref[_j];
-          input = $(inputObj);
-          value = input.val();
-          if (value.length) {
-            key = JSON.stringify({
-              currentDocType: currentDocType,
-              status: input.val()
-            });
-            value = input.getHexBackgroundColor();
-            currentColor = getColorOfStatus(currentDocType, input.val());
-            if (currentColor != null) {
-              currentColor.value = value;
-            } else {
-              userSettings.push({
-                key: key,
-                value: value
-              });
-            }
-            setUserSettings({
+    var newSaveButton;
+    newSaveButton = $('<div class="b-popup-button b-popup-button-green b-popup-button-enabled" _taistCheck id="saveTaistStatus"><table><tr><td><span>Сохранить</span></td></tr></table></div>');
+    saveButton.before(newSaveButton);
+    newSaveButton.bind('click', function() {
+      var currentColor, currentDocType, input, inputObj, key, value, _i, _len, _ref;
+      utils.localStorage.set('saveColor', 'Y');
+      currentDocType = ($('.gwt-TreeItem-selected')).text();
+      _ref = $('[colorPId]');
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        inputObj = _ref[_i];
+        input = $(inputObj);
+        value = input.val();
+        if (value.length) {
+          key = JSON.stringify({
+            currentDocType: currentDocType,
+            status: input.val()
+          });
+          value = input.getHexBackgroundColor();
+          currentColor = getColorOfStatus(currentDocType, input.val());
+          if (currentColor != null) {
+            currentColor.value = value;
+          } else {
+            userSettings.push({
               key: key,
               value: value
-            }, function() {});
+            });
           }
+          setUserSettings({
+            key: key,
+            value: value
+          }, function() {});
         }
-        curDiv.trigger('click');
-        return utils.localStorage["delete"]('saveColor');
-      });
-      curDiv.attr('_taistCheck', '');
-      _results.push(curDiv.hide());
-    }
-    return _results;
+      }
+      saveButton.trigger('click');
+      return utils.localStorage["delete"]('saveColor');
+    });
+    saveButton.attr('_taistCheck', '');
+    return saveButton.hide();
   };
   saveButtonSelector = '.b-popup-button-green:not("[_taistCheck]")';
   waitDrawButton = function() {
