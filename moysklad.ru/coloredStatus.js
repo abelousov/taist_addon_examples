@@ -159,7 +159,7 @@
       newSaveButton.bind('click', function() {
         var currentColor, currentDocType, input, inputObj, key, value, _j, _len2, _ref;
         utils.localStorage.set('saveColor', 'Y');
-        currentDocType = $('.gwt-TreeItem-selected').text();
+        currentDocType = ($('.gwt-TreeItem-selected')).text();
         _ref = $('[colorPId]');
         for (_j = 0, _len2 = _ref.length; _j < _len2; _j++) {
           inputObj = _ref[_j];
@@ -183,7 +183,7 @@
             setUserSettings({
               key: key,
               value: value
-            }, function(value) {});
+            }, function() {});
           }
         }
         curDiv.trigger('click');
@@ -208,10 +208,10 @@
     rgb = $(this).css('background-color');
     if (!rgb) return '#FFFFFF';
     hex_rgb = rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
-    hex = function(x) {
-      return ("0" + parseInt(x).toString(16)).slice(-2);
-    };
     if (hex_rgb) {
+      hex = function(x) {
+        return ("0" + parseInt(x).toString(16)).slice(-2);
+      };
       return "#" + hex(hex_rgb[1]) + hex(hex_rgb[2]) + hex(hex_rgb[3]);
     } else {
       return rgb;

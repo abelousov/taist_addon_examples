@@ -109,9 +109,9 @@
 			curDiv = $ status
 			newSaveButton = $ '<div class="b-popup-button b-popup-button-green b-popup-button-enabled" _taistCheck id="saveTaistStatus"><table><tr><td><span>Сохранить</span></td></tr></table></div>'
 			curDiv.before newSaveButton
-			newSaveButton.bind 'click', ()->
+			newSaveButton.bind 'click', ->
 				utils.localStorage.set 'saveColor', 'Y'
-				currentDocType = $('.gwt-TreeItem-selected').text()
+				currentDocType = ($ '.gwt-TreeItem-selected').text()
 				for inputObj in $ '[colorPId]'
 					input = $ inputObj
 					value = input.val()
@@ -146,15 +146,14 @@
 
 	onAdminPage = -> location.href.lastIndexOf('app/admin/#states') > 0
 
-	$.fn.getHexBackgroundColor = ()->
+	$.fn.getHexBackgroundColor = ->
 		rgb = $(this).css('background-color')
-		if (!rgb)
+		if not rgb
 			return '#FFFFFF'
 
 		hex_rgb = rgb.match /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/
-		hex = (x)->
-			return ("0" + parseInt(x).toString(16)).slice(-2)
-		if (hex_rgb)
+		if hex_rgb
+			hex = (x) -> ("0" + parseInt(x).toString(16)).slice -2
 			return "#" + hex(hex_rgb[1]) + hex(hex_rgb[2]) + hex(hex_rgb[3])
 		else
 			return rgb
