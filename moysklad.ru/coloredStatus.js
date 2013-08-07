@@ -185,7 +185,6 @@
       saveButton.trigger('click');
       return utils.localStorage["delete"]('saveColor');
     });
-    saveButton.attr('_taistCheck', '');
     return saveButton.hide();
   };
   saveButtonSelector = '.b-popup-button-green:not("[_taistCheck]")';

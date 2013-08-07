@@ -131,7 +131,6 @@
 			saveButton.trigger 'click'
 			utils.localStorage.delete 'saveColor'
 
-		saveButton.attr '_taistCheck', ''
 		saveButton.hide()
 
 	saveButtonSelector = '.b-popup-button-green:not("[_taistCheck]")'
