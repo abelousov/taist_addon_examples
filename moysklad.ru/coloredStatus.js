@@ -1,6 +1,6 @@
 
 (function() {
-  var docMap, getColorOfStatus, getColorOfStatusByHash, getCompanyName, getUserSettings, setUserSettings, start, startDraw, startDrawButton, startDrawCollorPicker, userSettings, utils, waitDraw, waitDrawButton, waitDrawColorPicker;
+  var docMap, getColorOfStatus, getColorOfStatusByHash, getCompanyName, getUserSettings, onAdminPage, saveButtonSelector, setUserSettings, start, startDraw, startDrawButton, startDrawCollorPicker, userSettings, utils, waitDraw, waitDrawButton, waitDrawColorPicker;
   utils = null;
   userSettings = [];
   start = function(utilities) {
@@ -195,10 +195,14 @@
     }
     return _results;
   };
+  saveButtonSelector = '.b-popup-button-green:not("[_taistCheck]")';
   waitDrawButton = function() {
-    return utils.wait.repeat((function() {
-      return $(location).attr('href').lastIndexOf('app/admin/#states') > 0 && $('.b-popup-button-green:not("[_taistCheck]")').length !== 0;
-    }), startDrawButton);
+    return utils.wait.elementRender(saveButtonSelector, function() {
+      if (onAdminPage()) return startDrawButton();
+    });
+  };
+  onAdminPage = function() {
+    return location.href.lastIndexOf('app/admin/#states') > 0;
   };
   $.fn.getHexBackgroundColor = function() {
     var hex, hex_rgb, rgb;

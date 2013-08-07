@@ -139,8 +139,14 @@
 			curDiv.attr('_taistCheck', '')
 			curDiv.hide()
 
+	saveButtonSelector = '.b-popup-button-green:not("[_taistCheck]")'
+
 	waitDrawButton = ->
-		utils.wait.repeat (->$(location).attr('href').lastIndexOf('app/admin/#states') > 0 && $('.b-popup-button-green:not("[_taistCheck]")').length != 0), startDrawButton
+		utils.wait.elementRender saveButtonSelector, ->
+			if onAdminPage()
+				startDrawButton()
+
+	onAdminPage = -> location.href.lastIndexOf('app/admin/#states') > 0
 
 	$.fn.getHexBackgroundColor = ()->
 		rgb = $(this).css('background-color')
