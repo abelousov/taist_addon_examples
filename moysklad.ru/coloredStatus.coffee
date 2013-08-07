@@ -104,23 +104,24 @@
 				waitDrawColorPicker()), 0
 
 	startDrawButton = (saveButton) ->
+		#TODO: проверить - сюда элементы должны передаваться поодиночке, тогда можно не перебирать
 		for status in saveButton
-			curDiv = $(status)
-			newSaveButton = $('<div class="b-popup-button b-popup-button-green b-popup-button-enabled" _taistCheck id="saveTaistStatus"><table><tr><td><span>Сохранить</span></td></tr></table></div>')
-			curDiv.before(newSaveButton)
+			curDiv = $ status
+			newSaveButton = $ '<div class="b-popup-button b-popup-button-green b-popup-button-enabled" _taistCheck id="saveTaistStatus"><table><tr><td><span>Сохранить</span></td></tr></table></div>'
+			curDiv.before newSaveButton
 			newSaveButton.bind 'click', ()->
-				utils.localStorage.set('saveColor', 'Y')
+				utils.localStorage.set 'saveColor', 'Y'
 				currentDocType = $('.gwt-TreeItem-selected').text()
-				for inputObj in $('[colorPId]')
-					input = $(inputObj)
+				for inputObj in $ '[colorPId]'
+					input = $ inputObj
 					value = input.val()
 					if value.length
-						key = JSON.stringify({
-						currentDocType: currentDocType
-						status: input.val()
-						})
+						key = JSON.stringify
+							currentDocType: currentDocType
+							status: input.val()
+
 						value = input.getHexBackgroundColor()
-						currentColor = getColorOfStatus(currentDocType, input.val())
+						currentColor = getColorOfStatus currentDocType, input.val()
 						if currentColor?
 							currentColor.value = value
 						else
@@ -128,15 +129,12 @@
 								key: key
 								value: value
 
-						setUserSettings {
-						key: key
-						value: value
-						}, (value)->
+						setUserSettings {key, value}, ->
 
-				curDiv.trigger('click')
-				utils.localStorage.delete('saveColor')
+				curDiv.trigger 'click'
+				utils.localStorage.delete 'saveColor'
 
-			curDiv.attr('_taistCheck', '')
+			curDiv.attr '_taistCheck', ''
 			curDiv.hide()
 
 	saveButtonSelector = '.b-popup-button-green:not("[_taistCheck]")'
