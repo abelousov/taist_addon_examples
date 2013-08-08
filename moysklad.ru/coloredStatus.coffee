@@ -33,7 +33,7 @@
 				if docHash.hash == cutHash
 					return (getColorOfStatus docHash.key, statusName)?.value
 
-	setUserSettings = (setting, cb)-> utils.userData.set setting.key, setting.value, cb, $('.companyName>span').text()
+	setUserSettings = (setting, cb)-> utils.userData.set setting.key, setting.value, cb, getCompanyName()
 
 	startDraw = ->
 		i=0

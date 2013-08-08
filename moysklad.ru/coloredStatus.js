@@ -48,7 +48,7 @@
     }
   };
   setUserSettings = function(setting, cb) {
-    return utils.userData.set(setting.key, setting.value, cb, $('.companyName>span').text());
+    return utils.userData.set(setting.key, setting.value, cb, getCompanyName());
   };
   startDraw = function() {
     var color, column, hash, i, index, jrow, row, _i, _j, _len, _len2, _ref, _ref2;
