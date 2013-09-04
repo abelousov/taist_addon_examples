@@ -5,15 +5,19 @@
 	start = (utilities) ->
 		utils = utilities
 		utils.wait.once (->getCompanyName().length > 0), ->
-			getUserSettings()
-			waitDrawColorPicker()
-			waitDrawButton()
-			waitDraw()
+			getUserSettings ->
+				waitDrawColorPicker()
+				waitDrawButton()
+				waitDraw()
 
 	getCompanyName = -> $('.companyName>span').text()
 
-	getUserSettings = ->
-		utils.userData.get '', ((error, value)-> userSettings = value), getCompanyName()
+	getUserSettings = (callback) ->
+		utils.userData.get '', (
+			(error, value) ->
+				userSettings = value
+				callback()
+		), getCompanyName()
 
 	getColorOfStatus = (docType, statusName)->
 		contKey = JSON.stringify
@@ -36,29 +40,45 @@
 	setUserSettings = (setting, cb)-> utils.userData.set setting.key, setting.value, cb, getCompanyName()
 
 	startDraw = ->
-		i=0
+		docsTable = getDocsTable()
+		hash = $(location).attr('hash')
+		statusColumnIndex = getStatusColumnIndex docsTable
+
+		console.log 'started draw!', statusColumnIndex
+
+		if statusColumnIndex?
+			rows = docsTable.find('tbody').find('tr')
+			console.log {rows}
+			for row in rows
+				jRow = $(row)
+				color = getColorOfStatusByHash hash, $(jRow.find('td')[statusColumnIndex]).find('[title]').text()
+				if color?
+					jRow.children().attr('style', 'background:' + color + '!important')
+
+
+		docsTable.find('td:not([style*="background"])').attr('style', 'background:#FFFFFF !important')
+
+	getDocsTable = -> $ 'table.b-document-table'
+	getStatusColumnIndex = (docsTable) ->
 		index = null
-		for column in $($('table.b-document-table>thead').find('tr')[1]).find('th')
+		for column, i in docsTable.find('thead').find('tr[class!="floating-header"]').find 'th'
 			if $(column).find('[title="Статус"]').length
 				index = i
 				break
-			else
-				i++
-		hash = $(location).attr('hash')
-		if index?
-			for row in $('table.b-document-table>tbody').find('tr')
-				jrow = $(row)
-				color = getColorOfStatusByHash hash, $(jrow.find('td')[index]).find('[title]').text()
-				if color?
-					jrow.children().attr('style', 'background:' + color + '!important')
 
-
-		$('table.b-document-table').find('td:not([style*="background"])').attr('style', 'background:#FFFFFF !important')
+		return index
 
 	waitDraw = ->
-		#TODO: попробовать find заменить на единый селектор
-		utils.wait.elementRender (-> ($ 'table.b-document-table').find 'td:not([style*="background"])'), startDraw
-		utils.wait.hashChange startDraw
+		rendered = false
+		count = 0
+		utils.wait.repeat (-> getDocsTable().length > 0), ->
+			if not rendered
+				console.log "count: ", count++
+				rendered = true
+				startDraw()
+		utils.wait.hashChange ->
+			console.log 'hash changed!'
+			rendered = false
 
 	startDrawCollorPicker = ->
 		i=0
@@ -136,9 +156,9 @@
 	saveButtonSelector = '.b-popup-button-green:not("[_taistCheck]")'
 
 	waitDrawButton = ->
-		utils.wait.elementRender saveButtonSelector, (saveButton) ->
-			if onAdminPage()
-				startDrawButton saveButton
+		if onAdminPage()
+			utils.wait.elementRender saveButtonSelector, (saveButton) ->
+					startDrawButton saveButton
 
 	onAdminPage = -> location.href.lastIndexOf('app/admin/#states') > 0
 
