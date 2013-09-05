@@ -1,6 +1,6 @@
 
 (function() {
-  var docMap, getColorOfStatus, getColorOfStatusByHash, getCompanyName, getUserSettings, onAdminPage, saveButtonSelector, setUserSettings, start, startDraw, startDrawButton, startDrawCollorPicker, userSettings, utils, waitDraw, waitDrawButton, waitDrawColorPicker;
+  var docMap, drawRow, getColorOfStatus, getColorOfStatusByHash, getCompanyName, getDocsTable, getRowsToRedraw, getStatusColumnIndex, getUserSettings, onAdminPage, redrawRows, saveButtonSelector, setUserSettings, start, startDraw, startDrawButton, startDrawCollorPicker, userSettings, utils, waitDraw, waitDrawButton, waitDrawColorPicker, waitForRowsToRedraw;
   utils = null;
   userSettings = [];
   start = function(utilities) {
@@ -8,18 +8,20 @@
     return utils.wait.once((function() {
       return getCompanyName().length > 0;
     }), function() {
-      getUserSettings();
-      waitDrawColorPicker();
-      waitDrawButton();
-      return waitDraw();
+      return getUserSettings(function() {
+        waitDrawColorPicker();
+        waitDrawButton();
+        return waitForRowsToRedraw();
+      });
     });
   };
   getCompanyName = function() {
     return $('.companyName>span').text();
   };
-  getUserSettings = function() {
+  getUserSettings = function(callback) {
     return utils.userData.get('', (function(error, value) {
-      return userSettings = value;
+      userSettings = value;
+      return callback();
     }), getCompanyName());
   };
   getColorOfStatus = function(docType, statusName) {
@@ -50,39 +52,103 @@
   setUserSettings = function(setting, cb) {
     return utils.userData.set(setting.key, setting.value, cb, getCompanyName());
   };
+  waitDraw = function() {
+    var count, rendered;
+    rendered = false;
+    count = 0;
+    utils.wait.repeat((function() {
+      return getDocsTable().length > 0;
+    }), function() {
+      return setTimeout((function() {
+        if (!rendered) {
+          console.log("count: ", count++);
+          rendered = true;
+          return startDraw();
+        }
+      }), 2000);
+    });
+    return utils.wait.hashChange(function() {
+      console.log('hash changed!');
+      return rendered = false;
+    });
+  };
   startDraw = function() {
-    var color, column, hash, i, index, jrow, row, _i, _j, _len, _len2, _ref, _ref2;
-    i = 0;
+    var color, docsTable, hash, jRow, row, statusColumnIndex, _i, _len, _ref, _results;
+    docsTable = getDocsTable();
+    hash = $(location).attr('hash');
+    statusColumnIndex = getStatusColumnIndex(docsTable);
+    console.log('started draw!', statusColumnIndex, docsTable);
+    if (statusColumnIndex != null) {
+      _ref = $("table.b-document-table tbody tr");
+      _results = [];
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        row = _ref[_i];
+        jRow = $(row);
+        color = getColorOfStatusByHash(hash, $(jRow.find('td')[statusColumnIndex]).find('[title]').text());
+        if (color != null) {
+          _results.push(jRow.children().attr('style', 'background:' + color + '!important'));
+        } else {
+          _results.push(void 0);
+        }
+      }
+      return _results;
+    }
+  };
+  waitForRowsToRedraw = function() {
+    var currentRenderedAttrValue;
+    currentRenderedAttrValue = Math.random();
+    utils.wait.repeat((function() {
+      return (getDocsTable().find("tbody tr[renderedColor!=\"" + currentRenderedAttrValue + "\"]")).length > 0;
+    }), function() {
+      var rows;
+      rows = getRowsToRedraw(currentRenderedAttrValue);
+      redrawRows(rows, location.hash);
+      return rows.attr('renderedColor', currentRenderedAttrValue);
+    });
+    return utils.wait.hashChange(function() {
+      return currentRenderedAttrValue = Math.random();
+    });
+  };
+  getRowsToRedraw = function(newRenderedAttrValue) {
+    return getDocsTable().find("tbody tr[renderedColor!=\"" + newRenderedAttrValue + "\"]");
+  };
+  redrawRows = function(rows, currentHash) {
+    var docsTable, getColorByStatus, row, statusColumnIndex, _i, _len;
+    docsTable = getDocsTable();
+    statusColumnIndex = getStatusColumnIndex(docsTable);
+    if (statusColumnIndex != null) {
+      getColorByStatus = function(statusName) {
+        return getColorOfStatusByHash(currentHash, statusName);
+      };
+      for (_i = 0, _len = rows.length; _i < _len; _i++) {
+        row = rows[_i];
+        drawRow($(row), getColorByStatus, statusColumnIndex);
+      }
+    }
+    return docsTable.find('td:not([style*="background"])').attr('style', 'background:#FFFFFF !important');
+  };
+  drawRow = function(jqRow, getColorByStatus, statusColumnIndex) {
+    var color;
+    color = getColorByStatus($(jqRow.find('td')[statusColumnIndex]).find('[title]').text());
+    if (color != null) {
+      return jqRow.children().attr('style', 'background:' + color + '!important');
+    }
+  };
+  getDocsTable = function() {
+    return $('table.b-document-table');
+  };
+  getStatusColumnIndex = function(docsTable) {
+    var column, i, index, _len, _ref;
     index = null;
-    _ref = $($('table.b-document-table>thead').find('tr')[1]).find('th');
-    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-      column = _ref[_i];
+    _ref = docsTable.find('thead').find('tr[class!="floating-header"]').find('th');
+    for (i = 0, _len = _ref.length; i < _len; i++) {
+      column = _ref[i];
       if ($(column).find('[title="Статус"]').length) {
         index = i;
         break;
-      } else {
-        i++;
       }
     }
-    hash = $(location).attr('hash');
-    if (index != null) {
-      _ref2 = $('table.b-document-table>tbody').find('tr');
-      for (_j = 0, _len2 = _ref2.length; _j < _len2; _j++) {
-        row = _ref2[_j];
-        jrow = $(row);
-        color = getColorOfStatusByHash(hash, $(jrow.find('td')[index]).find('[title]').text());
-        if (color != null) {
-          jrow.children().attr('style', 'background:' + color + '!important');
-        }
-      }
-    }
-    return $('table.b-document-table').find('td:not([style*="background"])').attr('style', 'background:#FFFFFF !important');
-  };
-  waitDraw = function() {
-    utils.wait.elementRender((function() {
-      return ($('table.b-document-table')).find('td:not([style*="background"])');
-    }), startDraw);
-    return utils.wait.hashChange(startDraw);
+    return index;
   };
   startDrawCollorPicker = function() {
     var color, colorPickCall, curDiv, currentDocType, i, inputId, picker, status, _i, _len, _ref, _results;
@@ -189,9 +255,11 @@
   };
   saveButtonSelector = '.b-popup-button-green:not("[_taistCheck]")';
   waitDrawButton = function() {
-    return utils.wait.elementRender(saveButtonSelector, function(saveButton) {
-      if (onAdminPage()) return startDrawButton(saveButton);
-    });
+    if (onAdminPage()) {
+      return utils.wait.elementRender(saveButtonSelector, function(saveButton) {
+        return startDrawButton(saveButton);
+      });
+    }
   };
   onAdminPage = function() {
     return location.href.lastIndexOf('app/admin/#states') > 0;
