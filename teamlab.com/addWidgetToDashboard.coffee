@@ -1,36 +1,85 @@
 ->
-	start: (utils) ->
+	utils = null
+
+	start = (ut) ->
+		utils = ut
 		utils.dev.logMethodCalls window.Teamlab, "Teamlab"
-		utils.dev.logMethodCalls window.ServiceManager, "ServiceManager"
 
-		myOverdueTasksFilter =
-			deadlineStop: (new Date).toISOString()
-			status: "open"
-			participant: window.ServiceFactory.profile.id
+		getOverdueTasks drawOverDueTasks
 
-		window.Teamlab.getPrjTasks null, {filter: myOverdueTasksFilter, success: (->
-			window.taskList = arguments[1]
-			console.log 'taskList: ', arguments
-		)}
+	getOverdueTasks = (callback) ->
+		tasksRequest =
+			filter:
+				deadlineStop: (cleanTimeFromDate new Date).toISOString()
+				status: "open"
+				participant: getCurrentUserId()
+				sortBy: 'deadline'
+				sortOrder: 'ascending'
 
-		originalDrawTasksFunctionForReference = (tasksInfo, tasksList) ->
-			jq("#SubTasksBody").height("auto");
-			jq("#SubTasksBody .taskSaving").hide();
-			clearTimeout(ao);
-			X = false;
-			y();
-			jq("#SubTasksBody .taskList").html("");
-			jq("#showNextTaskProcess").hide();
-			jq("#SubTasksBody .taskList").height("auto");
-			if (tasksList.length)
-				jq.tmpl("projects_taskListItemTmpl", tasksList).appendTo(".taskList")
+			success: -> callback arguments[1]
 
-			if (!m)
-				jq("#SubTasksBody .choose.project span").html(jq("#SubTasksBody .choose.project").attr("choose"));
-				jq("#SubTasksBody .choose.project").attr("value", "")
+		window.Teamlab.getPrjTasks null, tasksRequest
 
-			LoadingBanner.hideLoading();
-			r = tasksInfo.__total : 0;
-			aq();
-			p(tasksList.length);
-			ASC.Projects.TasksManager.resize()
+	drawOverDueTasks = (tasks) ->
+		console.log {tasks}
+		overdueTasksUrl = "/products/projects/tasks.aspx#sortBy=deadline&sortOrder=ascending&tasks_responsible=#{getCurrentUserId()}&overdue=true"
+
+		overdueTasksExist = tasks.length > 0
+
+		widgetContainer = jQuery "<div style=\"text-align: left;\"></div>"
+
+		headerStyle =
+			if overdueTasksExist
+				"color: red;"
+			else
+				""
+
+		widgetContainer.append "<a style=\"#{headerStyle}\" class=\"linkHeaderLightBig\" href=\"#{overdueTasksUrl}\">Overdue tasks: </a><br/>"
+
+		tasksContainer = jQuery '<div style="margin-left: 40px"></div>'
+		widgetContainer.append tasksContainer
+
+		if overdueTasksExist
+			for task in tasks
+				tasksContainer.append (getTaskLink task), '<br/>'
+
+		else
+			tasksContainer.append '<div style="font-style: italic">No task is overdue. Congrats!</div>'
+
+		jQuery('.header-base-big').after widgetContainer
+
+	getTaskLink = (task) ->
+		taskUrl = "/products/projects/tasks.aspx?prjID=#{task.projectId}&id=#{task.id}"
+
+		overdueDays = getDateOffsetFromNow task.deadline
+		overdueDaysText =
+			if overdueDays is 0
+				'today'
+			else if overdueDays is 1
+				'yesterday'
+			else
+				overdueDays + ' days'
+
+		overdueDaysHtml = "<span style=\"color: red; margin-left: 20px;\">#{overdueDaysText}</span>"
+
+		taskTitleHtml = "<span style=\"color: #333;\">#{task.title}</span>"
+
+		return "<div style=\"margin-top: 5px;\"><a style=\"font-weight: bold\" href=\"#{taskUrl}\">#{taskTitleHtml + overdueDaysHtml}</a></div>"
+
+	getDateOffsetFromNow = (pastDate) ->
+		today = cleanTimeFromDate new Date()
+		cleanedPastDate = cleanTimeFromDate pastDate
+		millisecondsInDay = 1000 * 60 * 60 * 24
+		return (today - cleanedPastDate)/millisecondsInDay
+
+	cleanTimeFromDate = (date) ->
+		cleanedDate = new Date date
+		for timepart in ['Hours', 'Minutes', 'Seconds', 'Milliseconds']
+			cleanedDate['set' + timepart] 0
+
+		return cleanedDate
+
+
+	getCurrentUserId = -> window.ServiceFactory.profile.id
+
+	return {start}
