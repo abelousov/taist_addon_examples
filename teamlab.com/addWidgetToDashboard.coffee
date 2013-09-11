@@ -8,7 +8,10 @@
 			status: "open"
 			participant: window.ServiceFactory.profile.id
 
-		window.Teamlab.getPrjTasks(null, {filter: myOverdueTasksFilter, success: -> console.log 'tasks: ', arguments})
+		window.Teamlab.getPrjTasks null, {filter: myOverdueTasksFilter, success: (->
+			window.taskList = arguments[1]
+			console.log 'taskList: ', arguments
+		)}
 
 		originalDrawTasksFunctionForReference = (tasksInfo, tasksList) ->
 			jq("#SubTasksBody").height("auto");
