@@ -4,7 +4,6 @@
   utils = null;
   start = function(ut) {
     utils = ut;
-    utils.dev.logMethodCalls(window.Teamlab, "Teamlab");
     return getOverdueTasks(drawOverDueTasks);
   };
   getOverdueTasks = function(callback) {
@@ -25,9 +24,6 @@
   };
   drawOverDueTasks = function(tasks) {
     var headerStyle, overdueTasksExist, overdueTasksUrl, task, tasksContainer, widgetContainer, _i, _len;
-    console.log({
-      tasks: tasks
-    });
     overdueTasksUrl = "/products/projects/tasks.aspx#sortBy=deadline&sortOrder=ascending&tasks_responsible=" + (getCurrentUserId()) + "&overdue=true";
     overdueTasksExist = tasks.length > 0;
     widgetContainer = jQuery("<div style=\"text-align: left;\"></div>");

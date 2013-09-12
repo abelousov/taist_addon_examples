@@ -3,7 +3,6 @@
 
 	start = (ut) ->
 		utils = ut
-		utils.dev.logMethodCalls window.Teamlab, "Teamlab"
 
 		getOverdueTasks drawOverDueTasks
 
@@ -21,7 +20,6 @@
 		window.Teamlab.getPrjTasks null, tasksRequest
 
 	drawOverDueTasks = (tasks) ->
-		console.log {tasks}
 		overdueTasksUrl = "/products/projects/tasks.aspx#sortBy=deadline&sortOrder=ascending&tasks_responsible=#{getCurrentUserId()}&overdue=true"
 
 		overdueTasksExist = tasks.length > 0
