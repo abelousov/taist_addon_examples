@@ -6,9 +6,8 @@
 		utils = utilities
 		utils.wait.once (->getCompanyName().length > 0), ->
 			getUserSettings ->
-				waitDrawColorPicker()
+				waitForStatesSettingsUI()
 				waitDrawButton()
-#				waitDraw()
 				waitForRowsToRedraw()
 
 	getCompanyName = -> $('.companyName>span').text()
@@ -78,14 +77,9 @@
 
 		return index
 
-	startDrawCollorPicker = ->
-		i=0
-		inputId =0
-		if (utils.localStorage.get('saveColor'))
-			return
+	drawColorPickers = ->
 		currentDocType = $('.gwt-TreeItem-selected').text()
-		for status in $('input.gwt-TextBox[size="40"]')
-			i++
+		for status, i in $('input.gwt-TextBox[size="40"]')
 			curDiv = $(status)
 			inputId = curDiv.attr('colorPId')
 			if $('#color_picker_' + inputId).length == 0
@@ -114,51 +108,50 @@
 						background: color.value
 					curDiv.attr('check', 'true')
 
-
-	waitDrawColorPicker = ->
-		utils.wait.once (-> $(location).attr('href').lastIndexOf('app/admin/#states') > 0 && $('input.gwt-TextBox[size="40"]')[0]?), ->
+	waitForStatesSettingsUI = ->
+		firstTimeOnSettingsPage = true
+		wait = ->
+			utils.wait.once statesSettingsDisplayed, ->
 			setTimeout (->
-				startDrawCollorPicker()
-				waitDrawColorPicker()), 0
+				if firstTimeOnSettingsPage
+					waitDrawButton()
+					firstTimeOnSettingsPage = false
+				drawColorPickers()
+				wait()), 0
 
-	startDrawButton = (saveButton) ->
-		newSaveButton = $ '<div class="b-popup-button b-popup-button-green b-popup-button-enabled" _taistCheck><table><tr><td><span>Сохранить</span></td></tr></table></div>'
-		saveButton.before newSaveButton
-		newSaveButton.bind 'click', ->
-			utils.localStorage.set 'saveColor', 'Y'
-			currentDocType = ($ '.gwt-TreeItem-selected').text()
-			for inputObj in $ '[colorPId]'
-				input = $ inputObj
-				value = input.val()
-				if value.length
-					key = JSON.stringify
-						currentDocType: currentDocType
-						status: input.val()
-
-					value = input.getHexBackgroundColor()
-					currentColor = getColorOfStatus currentDocType, input.val()
-					if currentColor?
-						currentColor.value = value
-					else
-						userSettings.push
-							key: key
-							value: value
-
-					setUserSettings {key, value}, ->
-
-			saveButton.trigger 'click'
-			utils.localStorage.delete 'saveColor'
-
-		saveButton.hide()
-
-	saveButtonSelector = '.b-popup-button-green:not("[_taistCheck]")'
+		wait()
 
 	waitDrawButton = ->
-		if onAdminPage()
-			utils.wait.elementRender saveButtonSelector, (saveButton) ->
-					startDrawButton saveButton
+		utils.wait.elementRender saveButtonSelector, (saveButton) ->
+			saveButton.click saveCurrentStatesColors
 
-	onAdminPage = -> location.href.lastIndexOf('app/admin/#states') > 0
+	saveButtonSelector = '.b-popup-button-green'
+
+	saveCurrentStatesColors = ->
+		currentDocType = ($ '.gwt-TreeItem-selected').text()
+		for inputObj in $ '[colorPId]'
+			input = $ inputObj
+			value = input.val()
+			if value.length
+				key = JSON.stringify
+					currentDocType: currentDocType
+					status: input.val()
+
+				value = input.getHexBackgroundColor()
+				currentColor = getColorOfStatus currentDocType, input.val()
+				if currentColor?
+					currentColor.value = value
+				else
+					userSettings.push
+						key: key
+						value: value
+
+				setUserSettings {key, value}, ->
+
+	statesSettingsDisplayed = -> onStatesSettingsPage() and someStatesExist()
+
+	onStatesSettingsPage = -> location.href.indexOf('app/admin/#states') > 0
+	someStatesExist = -> $('input.gwt-TextBox[size="40"]').length > 0
 
 	$.fn.getHexBackgroundColor = ->
 		rgb = $(this).css('background-color')
