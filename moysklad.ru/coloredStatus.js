@@ -1,6 +1,6 @@
 
 (function() {
-  var docMap, drawRow, getColorOfStatus, getColorOfStatusByHash, getCompanyName, getDocsTable, getRowsToRedraw, getStatusColumnIndex, getUserSettings, onAdminPage, redrawRows, saveButtonSelector, setUserSettings, start, startDraw, startDrawButton, startDrawCollorPicker, userSettings, utils, waitDraw, waitDrawButton, waitDrawColorPicker, waitForRowsToRedraw;
+  var docMap, drawRow, getColorOfStatus, getColorOfStatusByHash, getCompanyName, getDocsTable, getRowsToRedraw, getStatusColumnIndex, getUserSettings, onAdminPage, redrawRows, saveButtonSelector, setUserSettings, start, startDrawButton, startDrawCollorPicker, userSettings, utils, waitDrawButton, waitDrawColorPicker, waitForRowsToRedraw;
   utils = null;
   userSettings = [];
   start = function(utilities) {
@@ -51,48 +51,6 @@
   };
   setUserSettings = function(setting, cb) {
     return utils.userData.set(setting.key, setting.value, cb, getCompanyName());
-  };
-  waitDraw = function() {
-    var count, rendered;
-    rendered = false;
-    count = 0;
-    utils.wait.repeat((function() {
-      return getDocsTable().length > 0;
-    }), function() {
-      return setTimeout((function() {
-        if (!rendered) {
-          console.log("count: ", count++);
-          rendered = true;
-          return startDraw();
-        }
-      }), 2000);
-    });
-    return utils.wait.hashChange(function() {
-      console.log('hash changed!');
-      return rendered = false;
-    });
-  };
-  startDraw = function() {
-    var color, docsTable, hash, jRow, row, statusColumnIndex, _i, _len, _ref, _results;
-    docsTable = getDocsTable();
-    hash = $(location).attr('hash');
-    statusColumnIndex = getStatusColumnIndex(docsTable);
-    console.log('started draw!', statusColumnIndex, docsTable);
-    if (statusColumnIndex != null) {
-      _ref = $("table.b-document-table tbody tr");
-      _results = [];
-      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-        row = _ref[_i];
-        jRow = $(row);
-        color = getColorOfStatusByHash(hash, $(jRow.find('td')[statusColumnIndex]).find('[title]').text());
-        if (color != null) {
-          _results.push(jRow.children().attr('style', 'background:' + color + '!important'));
-        } else {
-          _results.push(void 0);
-        }
-      }
-      return _results;
-    }
   };
   waitForRowsToRedraw = function() {
     var currentRenderedAttrValue;

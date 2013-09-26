@@ -40,34 +40,6 @@
 
 	setUserSettings = (setting, cb)-> utils.userData.set setting.key, setting.value, cb, getCompanyName()
 
-	waitDraw = ->
-		rendered = false
-		count = 0
-		utils.wait.repeat (-> getDocsTable().length > 0), ->
-			setTimeout (->
-				if not rendered
-					console.log "count: ", count++
-					rendered = true
-					startDraw()
-			), 2000
-		utils.wait.hashChange ->
-			console.log 'hash changed!'
-			rendered = false
-
-	startDraw = ->
-		docsTable = getDocsTable()
-		hash = $(location).attr('hash')
-		statusColumnIndex = getStatusColumnIndex docsTable
-
-		console.log 'started draw!', statusColumnIndex, docsTable
-
-		if statusColumnIndex?
-			for row in $ "table.b-document-table tbody tr"
-				jRow = $(row)
-				color = getColorOfStatusByHash hash, $(jRow.find('td')[statusColumnIndex]).find('[title]').text()
-				if color?
-					jRow.children().attr('style', 'background:' + color + '!important')
-
 	waitForRowsToRedraw = ->
 		currentRenderedAttrValue = Math.random()
 
