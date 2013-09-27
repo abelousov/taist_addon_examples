@@ -1,6 +1,6 @@
 
 (function() {
-  var colorStateNameInput, docMap, drawColorPickers, drawColorSettings, drawRow, getColorFromStateInput, getColorOfStatus, getColorOfStatusByHash, getCompanyName, getCurrentDocTypeOnStatesSettingsPage, getDocsTable, getState, getStateColorFromStateSettingsPage, getStateInputs, getStatusColumnIndex, getUserSettings, onCurrentDocTypeChanged, redrawRows, saveButtonSelector, saveCurrentStatesColors, setUserSettings, start, userSettings, utils, waitDrawButton, watchForRowsToRedraw;
+  var addColorPicker, colorStateNameInput, docMap, drawColorPicker, drawColorPickers, drawColorSettings, drawRow, getColorFromStateInput, getCompanyName, getCurrentDocTypeOnStatesSettingsPage, getDocsTable, getStateColorFromStateSettingsPage, getStateColorOnDocsPage, getStateColumnIndex, getStateFromInput, getStateInputs, getStoredStateColor, getUserSettings, onCurrentDocTypeChanged, redrawRows, saveButtonSelector, saveCurrentStatesColors, setUserSettings, start, userSettings, utils, waitDrawButton, watchForRowsToRedraw;
   utils = null;
   userSettings = [];
   start = function(utilities, entryPoint) {
@@ -26,11 +26,11 @@
       return callback();
     }), getCompanyName());
   };
-  getColorOfStatus = function(docType, statusName) {
+  getStoredStateColor = function(docType, state) {
     var contKey, setting, _i, _len;
     contKey = JSON.stringify({
       currentDocType: docType,
-      status: statusName
+      status: state
     });
     for (_i = 0, _len = userSettings.length; _i < _len; _i++) {
       setting = userSettings[_i];
@@ -38,18 +38,20 @@
     }
     return null;
   };
-  getColorOfStatusByHash = function(hash, statusName) {
-    var cutHash, docHash, _i, _len, _ref;
-    if (hash != null) {
-      cutHash = hash;
-      if (hash.indexOf('?') >= 0) cutHash = hash.substr(0, hash.indexOf('?'));
-      for (_i = 0, _len = docMap.length; _i < _len; _i++) {
-        docHash = docMap[_i];
-        if (docHash.hash === cutHash) {
-          return (_ref = getColorOfStatus(docHash.key, statusName)) != null ? _ref.value : void 0;
-        }
+  getStateColorOnDocsPage = function(state) {
+    var cutHash, docHash, hash, _i, _len, _ref;
+    hash = location.hash;
+    cutHash = hash;
+    if (hash.indexOf('?') >= 0) cutHash = hash.substr(0, hash.indexOf('?'));
+    for (_i = 0, _len = docMap.length; _i < _len; _i++) {
+      docHash = docMap[_i];
+      if (docHash.hash === cutHash) {
+        return (_ref = getStoredStateColor(docHash.key, state)) != null ? _ref.value : void 0;
       }
     }
+  };
+  getStateColorFromStateSettingsPage = function(state) {
+    return getStoredStateColor(getCurrentDocTypeOnStatesSettingsPage(), state);
   };
   setUserSettings = function(setting, cb) {
     return utils.userData.set(setting.key, setting.value, cb, getCompanyName());
@@ -58,27 +60,25 @@
     return utils.wait.elementRender((function() {
       return getDocsTable().find("tbody tr");
     }), function(rows) {
-      return redrawRows(rows, location.hash);
+      return redrawRows(rows);
     });
   };
-  redrawRows = function(rows, currentHash) {
-    var getColorByStatus, row, statusColumnIndex, _i, _len, _results;
-    statusColumnIndex = getStatusColumnIndex(getDocsTable());
-    if (statusColumnIndex != null) {
-      getColorByStatus = function(statusName) {
-        return getColorOfStatusByHash(currentHash, statusName);
-      };
+  redrawRows = function(rows) {
+    var row, stateColumnIndex, _i, _len, _results;
+    stateColumnIndex = getStateColumnIndex(getDocsTable());
+    if (stateColumnIndex) {
       _results = [];
       for (_i = 0, _len = rows.length; _i < _len; _i++) {
         row = rows[_i];
-        _results.push(drawRow($(row), getColorByStatus, statusColumnIndex));
+        _results.push(drawRow($(row), stateColumnIndex));
       }
       return _results;
     }
   };
-  drawRow = function(jqRow, getColorByStatus, statusColumnIndex) {
-    var color;
-    color = getColorByStatus($(jqRow.find('td')[statusColumnIndex]).find('[title]').text());
+  drawRow = function(jqRow, stateColumnIndex) {
+    var color, state;
+    state = $(jqRow.find('td')[stateColumnIndex]).find('[title]').text();
+    color = getStateColorOnDocsPage(state);
     if (color != null) {
       return jqRow.children().attr('style', 'background:' + color + '!important');
     }
@@ -86,7 +86,7 @@
   getDocsTable = function() {
     return $('table.b-document-table');
   };
-  getStatusColumnIndex = function(docsTable) {
+  getStateColumnIndex = function(docsTable) {
     var column, i, _len, _ref;
     _ref = docsTable.find('thead').find('tr[class!="floating-header"]').find('th');
     for (i = 0, _len = _ref.length; i < _len; i++) {
@@ -128,14 +128,14 @@
     for (_i = 0, _len = _ref.length; _i < _len; _i++) {
       inputObj = _ref[_i];
       jqInput = $(inputObj);
-      state = getState(jqInput);
+      state = getStateFromInput(jqInput);
       if (state.length > 0) {
         key = JSON.stringify({
           currentDocType: getCurrentDocTypeOnStatesSettingsPage(),
           status: state
         });
         value = jqInput.getHexBackgroundColor();
-        currentColor = getColorFromStateInput(jqInput);
+        currentColor = getStateColorFromStateSettingsPage(state);
         if (currentColor != null) {
           currentColor.value = value;
         } else {
@@ -161,51 +161,45 @@
       return null;
     }
   };
-  getStateColorFromStateSettingsPage = function(state) {
-    return getColorOfStatus(getCurrentDocTypeOnStatesSettingsPage(), state);
-  };
   getStateInputs = function() {
     return $('input.gwt-TextBox[size="40"]');
   };
-  getState = function(input) {
+  getStateFromInput = function(input) {
     return input.val();
   };
   drawColorPickers = function() {
-    var colorPickCall, i, inputId, jqStateNameInput, picker, stateNameInput, _len, _ref, _results;
+    var stateNameInput, _i, _len, _ref, _results;
     _ref = getStateInputs();
     _results = [];
-    for (i = 0, _len = _ref.length; i < _len; i++) {
-      stateNameInput = _ref[i];
-      jqStateNameInput = $(stateNameInput);
-      inputId = jqStateNameInput.attr('colorPId');
-      if ($('#color_picker_' + inputId).length === 0) {
-        if (!(inputId != null)) jqStateNameInput.attr('colorPId', i);
-        colorStateNameInput(jqStateNameInput);
-        picker = $('<td><div id="color_picker_' + i + '"></div></td>');
-        jqStateNameInput.parent().after(picker);
-        colorPickCall = function(hex, inputId) {
-          return $('[colorPId=' + inputId + ']').css({
-            background: '#' + hex
-          });
-        };
-        _results.push(picker.colourPicker({
-          title: '',
-          inputId: i,
-          colorPickCallback: colorPickCall
-        }));
-      } else {
-        _results.push(void 0);
-      }
+    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      stateNameInput = _ref[_i];
+      _results.push(drawColorPicker($(stateNameInput)));
     }
     return _results;
   };
+  drawColorPicker = function(jqStateInput) {
+    colorStateNameInput(jqStateInput);
+    return addColorPicker(jqStateInput);
+  };
   getColorFromStateInput = function(input) {
-    return getStateColorFromStateSettingsPage(getState(input));
+    return getStateColorFromStateSettingsPage(getStateFromInput(input));
   };
   colorStateNameInput = function(input) {
     var _ref, _ref2;
     return input.css({
       background: (_ref = (_ref2 = getColorFromStateInput(input)) != null ? _ref2.value : void 0) != null ? _ref : 'white'
+    });
+  };
+  addColorPicker = function(input) {
+    var picker;
+    picker = $('<td></td>');
+    input.parent().after(picker);
+    return picker.colourPicker({
+      colorPickCallback: function(hexColor) {
+        return input.css({
+          background: '#' + hexColor
+        });
+      }
     });
   };
   $.fn.getHexBackgroundColor = function() {
