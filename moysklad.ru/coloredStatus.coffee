@@ -61,8 +61,6 @@
 			for row in rows
 				drawRow ($ row), getColorByStatus, statusColumnIndex
 
-		docsTable.find('td:not([style*="background"])').attr('style', 'background:#FFFFFF !important')
-
 	drawRow = (jqRow, getColorByStatus, statusColumnIndex) ->
 		color = getColorByStatus $(jqRow.find('td')[statusColumnIndex]).find('[title]').text()
 		if color?
@@ -70,13 +68,11 @@
 
 	getDocsTable = -> $ 'table.b-document-table'
 	getStatusColumnIndex = (docsTable) ->
-		index = null
 		for column, i in docsTable.find('thead').find('tr[class!="floating-header"]').find 'th'
-			if $(column).find('[title="Статус"]').length
-				index = i
-				break
+			if $(column).find('[title="Статус"]').length > 0
+				return i
 
-		return index
+		return null
 
 	drawColorSettings = ->
 		waitDrawButton()

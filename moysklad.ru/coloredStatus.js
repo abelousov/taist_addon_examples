@@ -73,19 +73,20 @@
     return getDocsTable().find("tbody tr[renderedColor!=\"" + newRenderedAttrValue + "\"]");
   };
   redrawRows = function(rows, currentHash) {
-    var docsTable, getColorByStatus, row, statusColumnIndex, _i, _len;
+    var docsTable, getColorByStatus, row, statusColumnIndex, _i, _len, _results;
     docsTable = getDocsTable();
     statusColumnIndex = getStatusColumnIndex(docsTable);
     if (statusColumnIndex != null) {
       getColorByStatus = function(statusName) {
         return getColorOfStatusByHash(currentHash, statusName);
       };
+      _results = [];
       for (_i = 0, _len = rows.length; _i < _len; _i++) {
         row = rows[_i];
-        drawRow($(row), getColorByStatus, statusColumnIndex);
+        _results.push(drawRow($(row), getColorByStatus, statusColumnIndex));
       }
+      return _results;
     }
-    return docsTable.find('td:not([style*="background"])').attr('style', 'background:#FFFFFF !important');
   };
   drawRow = function(jqRow, getColorByStatus, statusColumnIndex) {
     var color;
@@ -98,17 +99,13 @@
     return $('table.b-document-table');
   };
   getStatusColumnIndex = function(docsTable) {
-    var column, i, index, _len, _ref;
-    index = null;
+    var column, i, _len, _ref;
     _ref = docsTable.find('thead').find('tr[class!="floating-header"]').find('th');
     for (i = 0, _len = _ref.length; i < _len; i++) {
       column = _ref[i];
-      if ($(column).find('[title="Статус"]').length) {
-        index = i;
-        break;
-      }
+      if ($(column).find('[title="Статус"]').length > 0) return i;
     }
-    return index;
+    return null;
   };
   drawColorSettings = function() {
     var wait;
