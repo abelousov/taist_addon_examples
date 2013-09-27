@@ -1,6 +1,6 @@
 
 (function() {
-  var docMap, drawColorPickers, drawColorSettings, drawRow, getColorOfStatus, getColorOfStatusByHash, getCompanyName, getCurrentDocTypeOnStatesSettingsPage, getDocsTable, getStateColorFromStateSettingsPage, getStateNameInputs, getStatusColumnIndex, getUserSettings, onCurrentDocTypeChanged, redrawRows, saveButtonSelector, saveCurrentStatesColors, setUserSettings, start, userSettings, utils, waitDrawButton, watchForRowsToRedraw;
+  var colorStateNameInput, docMap, drawColorPickers, drawColorSettings, drawRow, getColorFromStateInput, getColorOfStatus, getColorOfStatusByHash, getCompanyName, getCurrentDocTypeOnStatesSettingsPage, getDocsTable, getState, getStateColorFromStateSettingsPage, getStateInputs, getStatusColumnIndex, getUserSettings, onCurrentDocTypeChanged, redrawRows, saveButtonSelector, saveCurrentStatesColors, setUserSettings, start, userSettings, utils, waitDrawButton, watchForRowsToRedraw;
   utils = null;
   userSettings = [];
   start = function(utilities, entryPoint) {
@@ -122,20 +122,20 @@
   };
   saveButtonSelector = '.b-popup-button-green';
   saveCurrentStatesColors = function() {
-    var currentColor, input, inputObj, key, value, _i, _len, _ref, _results;
-    _ref = getStateNameInputs();
+    var currentColor, inputObj, jqInput, key, state, value, _i, _len, _ref, _results;
+    _ref = getStateInputs();
     _results = [];
     for (_i = 0, _len = _ref.length; _i < _len; _i++) {
       inputObj = _ref[_i];
-      input = $(inputObj);
-      value = input.val();
-      if (value.length) {
+      jqInput = $(inputObj);
+      state = getState(jqInput);
+      if (state.length > 0) {
         key = JSON.stringify({
           currentDocType: getCurrentDocTypeOnStatesSettingsPage(),
-          status: input.val()
+          status: state
         });
-        value = input.getHexBackgroundColor();
-        currentColor = getStateColorFromStateSettingsPage(input.val());
+        value = jqInput.getHexBackgroundColor();
+        currentColor = getColorFromStateInput(jqInput);
         if (currentColor != null) {
           currentColor.value = value;
         } else {
@@ -164,30 +164,25 @@
   getStateColorFromStateSettingsPage = function(state) {
     return getColorOfStatus(getCurrentDocTypeOnStatesSettingsPage(), state);
   };
-  getStateNameInputs = function() {
+  getStateInputs = function() {
     return $('input.gwt-TextBox[size="40"]');
   };
+  getState = function(input) {
+    return input.val();
+  };
   drawColorPickers = function() {
-    var color, colorPickCall, i, inputId, jqStatusTextBox, picker, statusTextBox, _len, _ref, _results;
-    _ref = getStateNameInputs();
+    var colorPickCall, i, inputId, jqStateNameInput, picker, stateNameInput, _len, _ref, _results;
+    _ref = getStateInputs();
     _results = [];
     for (i = 0, _len = _ref.length; i < _len; i++) {
-      statusTextBox = _ref[i];
-      jqStatusTextBox = $(statusTextBox);
-      inputId = jqStatusTextBox.attr('colorPId');
+      stateNameInput = _ref[i];
+      jqStateNameInput = $(stateNameInput);
+      inputId = jqStateNameInput.attr('colorPId');
       if ($('#color_picker_' + inputId).length === 0) {
-        jqStatusTextBox.css({
-          background: 'white'
-        });
-        if (!(inputId != null)) jqStatusTextBox.attr('colorPId', i);
-        color = getStateColorFromStateSettingsPage(jqStatusTextBox.val());
-        if (color != null) {
-          jqStatusTextBox.css({
-            background: color.value
-          });
-        }
+        if (!(inputId != null)) jqStateNameInput.attr('colorPId', i);
+        colorStateNameInput(jqStateNameInput);
         picker = $('<td><div id="color_picker_' + i + '"></div></td>');
-        jqStatusTextBox.parent().after(picker);
+        jqStateNameInput.parent().after(picker);
         colorPickCall = function(hex, inputId) {
           return $('[colorPId=' + inputId + ']').css({
             background: '#' + hex
@@ -203,6 +198,15 @@
       }
     }
     return _results;
+  };
+  getColorFromStateInput = function(input) {
+    return getStateColorFromStateSettingsPage(getState(input));
+  };
+  colorStateNameInput = function(input) {
+    var _ref, _ref2;
+    return input.css({
+      background: (_ref = (_ref2 = getColorFromStateInput(input)) != null ? _ref2.value : void 0) != null ? _ref : 'white'
+    });
   };
   $.fn.getHexBackgroundColor = function() {
     var hex, hex_rgb, rgb;

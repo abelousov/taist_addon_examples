@@ -90,16 +90,16 @@
 	saveButtonSelector = '.b-popup-button-green'
 
 	saveCurrentStatesColors = ->
-		for inputObj in getStateNameInputs()
-			input = $ inputObj
-			value = input.val()
-			if value.length
+		for inputObj in getStateInputs()
+			jqInput = $ inputObj
+			state = getState jqInput
+			if state.length > 0
 				key = JSON.stringify
 					currentDocType: getCurrentDocTypeOnStatesSettingsPage()
-					status: input.val()
+					status: state
 
-				value = input.getHexBackgroundColor()
-				currentColor = getStateColorFromStateSettingsPage input.val()
+				value = jqInput.getHexBackgroundColor()
+				currentColor = getColorFromStateInput jqInput
 				if currentColor?
 					currentColor.value = value
 				else
@@ -113,24 +113,21 @@
 
 	getStateColorFromStateSettingsPage = (state) -> getColorOfStatus getCurrentDocTypeOnStatesSettingsPage(), state
 
-	getStateNameInputs = -> $('input.gwt-TextBox[size="40"]')
+	getStateInputs = -> $('input.gwt-TextBox[size="40"]')
+	getState = (input) -> input.val()
 
 	drawColorPickers = ->
-		for statusTextBox, i in getStateNameInputs()
-			jqStatusTextBox = $(statusTextBox)
-			inputId = jqStatusTextBox.attr('colorPId')
+		for stateNameInput, i in getStateInputs()
+			jqStateNameInput = $(stateNameInput)
+			inputId = jqStateNameInput.attr('colorPId')
 			if $('#color_picker_' + inputId).length == 0
-				jqStatusTextBox.css
-					background: 'white'
 				if not inputId?
-					jqStatusTextBox.attr('colorPId', i)
-				color = getStateColorFromStateSettingsPage jqStatusTextBox.val()
-				if color?
-					jqStatusTextBox.css
-						background: color.value
+					jqStateNameInput.attr('colorPId', i)
+
+				colorStateNameInput jqStateNameInput
 
 				picker = $('<td><div id="color_picker_' + i + '"></div></td>')
-				jqStatusTextBox.parent().after(picker)
+				jqStateNameInput.parent().after(picker)
 				colorPickCall= (hex, inputId)->
 					$('[colorPId=' + inputId + ']').css({background: '#' + hex})
 
@@ -138,6 +135,9 @@
 					title: ''
 					inputId: i
 					colorPickCallback: colorPickCall
+					
+	getColorFromStateInput = (input) -> getStateColorFromStateSettingsPage getState input
+	colorStateNameInput = (input) -> input.css {background: (getColorFromStateInput input)?.value ? 'white'}
 
 	$.fn.getHexBackgroundColor = ->
 		rgb = $(this).css('background-color')
