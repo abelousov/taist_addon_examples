@@ -7,7 +7,7 @@
 		utils.wait.once (->getCompanyName().length > 0), ->
 			getUserSettings ->
 				if entryPoint is 'user'
-					colorRows()
+					watchForRowsToRedraw()
 				else
 					drawColorSettings()
 
@@ -40,21 +40,12 @@
 
 	setUserSettings = (setting, cb)-> utils.userData.set setting.key, setting.value, cb, getCompanyName()
 
-	colorRows = ->
-		currentRenderedAttrValue = Math.random()
-
-		utils.wait.repeat (-> (getDocsTable().find "tbody tr[renderedColor!=\"#{currentRenderedAttrValue}\"]").length > 0), ->
-			rows = getRowsToRedraw currentRenderedAttrValue
+	watchForRowsToRedraw = ->
+		utils.wait.elementRender (-> getDocsTable().find """tbody tr"""), (rows) ->
 			redrawRows rows, location.hash
-			rows.attr('renderedColor', currentRenderedAttrValue)
-
-		utils.wait.hashChange -> currentRenderedAttrValue = Math.random()
-
-	getRowsToRedraw = (newRenderedAttrValue) -> getDocsTable().find """tbody tr[renderedColor!="#{newRenderedAttrValue}"]"""
 
 	redrawRows = (rows, currentHash) ->
-		docsTable = getDocsTable()
-		statusColumnIndex = getStatusColumnIndex docsTable
+		statusColumnIndex = getStatusColumnIndex getDocsTable()
 		if statusColumnIndex?
 			getColorByStatus = (statusName) -> getColorOfStatusByHash currentHash, statusName
 
@@ -75,37 +66,40 @@
 		return null
 
 	drawColorSettings = ->
-		waitDrawButton()
-		wait = ->
-			utils.wait.once statesSettingsDisplayed, ->
-			setTimeout (->
+		waitDrawButton (saveButton) ->
+			saveButton.click ->
+				saveCurrentStatesColors()
 				drawColorPickers()
-				wait()), 0
 
-		wait()
+		onCurrentDocTypeChanged drawColorPickers
 
-	statesSettingsDisplayed = -> onStatesSettingsPage() and someStatesExist()
-	onStatesSettingsPage = -> location.href.indexOf('app/admin/#states') > 0
-	someStatesExist = -> $('input.gwt-TextBox[size="40"]').length > 0
+	onCurrentDocTypeChanged = (callback) ->
+		currentDocType = '<No current doc type>'
 
-	waitDrawButton = ->
-		utils.wait.elementRender saveButtonSelector, (saveButton) ->
-			saveButton.click saveCurrentStatesColors
+		docTypeOnStatesPageChanged = ->
+			newDocType = getCurrentDocTypeOnStatesSettingsPage()
+			return newDocType? and newDocType != currentDocType
+
+		utils.wait.repeat docTypeOnStatesPageChanged, ->
+			currentDocType = getCurrentDocTypeOnStatesSettingsPage()
+			callback()
+
+	waitDrawButton = (callback) ->
+		utils.wait.elementRender saveButtonSelector, callback
 
 	saveButtonSelector = '.b-popup-button-green'
 
 	saveCurrentStatesColors = ->
-		currentDocType = ($ '.gwt-TreeItem-selected').text()
 		for inputObj in $ '[colorPId]'
 			input = $ inputObj
 			value = input.val()
 			if value.length
 				key = JSON.stringify
-					currentDocType: currentDocType
+					currentDocType: getCurrentDocTypeOnStatesSettingsPage()
 					status: input.val()
 
 				value = input.getHexBackgroundColor()
-				currentColor = getColorOfStatus currentDocType, input.val()
+				currentColor = getStateColorFromStateSettingsPage input.val()
 				if currentColor?
 					currentColor.value = value
 				else
@@ -115,23 +109,26 @@
 
 				setUserSettings {key, value}, ->
 
+	getCurrentDocTypeOnStatesSettingsPage = -> if location.hash is '#states' then $('.gwt-TreeItem-selected').text() else null
+
+	getStateColorFromStateSettingsPage = (state) -> getColorOfStatus getCurrentDocTypeOnStatesSettingsPage(), state
+
 	drawColorPickers = ->
-		currentDocType = $('.gwt-TreeItem-selected').text()
-		for status, i in $('input.gwt-TextBox[size="40"]')
-			curDiv = $(status)
-			inputId = curDiv.attr('colorPId')
+		for statusTextBox, i in $('input.gwt-TextBox[size="40"]')
+			jqStatusTextBox = $(statusTextBox)
+			inputId = jqStatusTextBox.attr('colorPId')
 			if $('#color_picker_' + inputId).length == 0
-				curDiv.css
+				jqStatusTextBox.css
 					background: 'white'
-				if !curDiv.attr('colorPId')
-					curDiv.attr('colorPId', i)
-				color = getColorOfStatus(currentDocType, curDiv.val())
+				if not inputId?
+					jqStatusTextBox.attr('colorPId', i)
+				color = getStateColorFromStateSettingsPage jqStatusTextBox.val()
 				if color?
-					curDiv.css
+					jqStatusTextBox.css
 						background: color.value
-					curDiv.attr('check', 'true')
+
 				picker = $('<td><div id="color_picker_' + i + '"></div></td>')
-				curDiv.parent().after(picker)
+				jqStatusTextBox.parent().after(picker)
 				colorPickCall= (hex, inputId)->
 					$('[colorPId=' + inputId + ']').css({background: '#' + hex})
 
@@ -139,12 +136,6 @@
 					title: ''
 					inputId: i
 					colorPickCallback: colorPickCall
-			if !curDiv.attr('check')
-				color = getColorOfStatus(currentDocType, curDiv.val())
-				if color?
-					curDiv.css
-						background: color.value
-					curDiv.attr('check', 'true')
 
 	$.fn.getHexBackgroundColor = ->
 		rgb = $(this).css('background-color')

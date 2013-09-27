@@ -1,6 +1,6 @@
 
 (function() {
-  var colorRows, docMap, drawColorPickers, drawColorSettings, drawRow, getColorOfStatus, getColorOfStatusByHash, getCompanyName, getDocsTable, getRowsToRedraw, getStatusColumnIndex, getUserSettings, onStatesSettingsPage, redrawRows, saveButtonSelector, saveCurrentStatesColors, setUserSettings, someStatesExist, start, statesSettingsDisplayed, userSettings, utils, waitDrawButton;
+  var docMap, drawColorPickers, drawColorSettings, drawRow, getColorOfStatus, getColorOfStatusByHash, getCompanyName, getCurrentDocTypeOnStatesSettingsPage, getDocsTable, getStateColorFromStateSettingsPage, getStatusColumnIndex, getUserSettings, onCurrentDocTypeChanged, redrawRows, saveButtonSelector, saveCurrentStatesColors, setUserSettings, start, userSettings, utils, waitDrawButton, watchForRowsToRedraw;
   utils = null;
   userSettings = [];
   start = function(utilities, entryPoint) {
@@ -10,7 +10,7 @@
     }), function() {
       return getUserSettings(function() {
         if (entryPoint === 'user') {
-          return colorRows();
+          return watchForRowsToRedraw();
         } else {
           return drawColorSettings();
         }
@@ -54,28 +54,16 @@
   setUserSettings = function(setting, cb) {
     return utils.userData.set(setting.key, setting.value, cb, getCompanyName());
   };
-  colorRows = function() {
-    var currentRenderedAttrValue;
-    currentRenderedAttrValue = Math.random();
-    utils.wait.repeat((function() {
-      return (getDocsTable().find("tbody tr[renderedColor!=\"" + currentRenderedAttrValue + "\"]")).length > 0;
-    }), function() {
-      var rows;
-      rows = getRowsToRedraw(currentRenderedAttrValue);
-      redrawRows(rows, location.hash);
-      return rows.attr('renderedColor', currentRenderedAttrValue);
+  watchForRowsToRedraw = function() {
+    return utils.wait.elementRender((function() {
+      return getDocsTable().find("tbody tr");
+    }), function(rows) {
+      return redrawRows(rows, location.hash);
     });
-    return utils.wait.hashChange(function() {
-      return currentRenderedAttrValue = Math.random();
-    });
-  };
-  getRowsToRedraw = function(newRenderedAttrValue) {
-    return getDocsTable().find("tbody tr[renderedColor!=\"" + newRenderedAttrValue + "\"]");
   };
   redrawRows = function(rows, currentHash) {
-    var docsTable, getColorByStatus, row, statusColumnIndex, _i, _len, _results;
-    docsTable = getDocsTable();
-    statusColumnIndex = getStatusColumnIndex(docsTable);
+    var getColorByStatus, row, statusColumnIndex, _i, _len, _results;
+    statusColumnIndex = getStatusColumnIndex(getDocsTable());
     if (statusColumnIndex != null) {
       getColorByStatus = function(statusName) {
         return getColorOfStatusByHash(currentHash, statusName);
@@ -108,35 +96,33 @@
     return null;
   };
   drawColorSettings = function() {
-    var wait;
-    waitDrawButton();
-    wait = function() {
-      utils.wait.once(statesSettingsDisplayed, function() {});
-      return setTimeout((function() {
-        drawColorPickers();
-        return wait();
-      }), 0);
-    };
-    return wait();
-  };
-  statesSettingsDisplayed = function() {
-    return onStatesSettingsPage() && someStatesExist();
-  };
-  onStatesSettingsPage = function() {
-    return location.href.indexOf('app/admin/#states') > 0;
-  };
-  someStatesExist = function() {
-    return $('input.gwt-TextBox[size="40"]').length > 0;
-  };
-  waitDrawButton = function() {
-    return utils.wait.elementRender(saveButtonSelector, function(saveButton) {
-      return saveButton.click(saveCurrentStatesColors);
+    waitDrawButton(function(saveButton) {
+      return saveButton.click(function() {
+        saveCurrentStatesColors();
+        return drawColorPickers();
+      });
     });
+    return onCurrentDocTypeChanged(drawColorPickers);
+  };
+  onCurrentDocTypeChanged = function(callback) {
+    var currentDocType, docTypeOnStatesPageChanged;
+    currentDocType = '<No current doc type>';
+    docTypeOnStatesPageChanged = function() {
+      var newDocType;
+      newDocType = getCurrentDocTypeOnStatesSettingsPage();
+      return (newDocType != null) && newDocType !== currentDocType;
+    };
+    return utils.wait.repeat(docTypeOnStatesPageChanged, function() {
+      currentDocType = getCurrentDocTypeOnStatesSettingsPage();
+      return callback();
+    });
+  };
+  waitDrawButton = function(callback) {
+    return utils.wait.elementRender(saveButtonSelector, callback);
   };
   saveButtonSelector = '.b-popup-button-green';
   saveCurrentStatesColors = function() {
-    var currentColor, currentDocType, input, inputObj, key, value, _i, _len, _ref, _results;
-    currentDocType = ($('.gwt-TreeItem-selected')).text();
+    var currentColor, input, inputObj, key, value, _i, _len, _ref, _results;
     _ref = $('[colorPId]');
     _results = [];
     for (_i = 0, _len = _ref.length; _i < _len; _i++) {
@@ -145,11 +131,11 @@
       value = input.val();
       if (value.length) {
         key = JSON.stringify({
-          currentDocType: currentDocType,
+          currentDocType: getCurrentDocTypeOnStatesSettingsPage(),
           status: input.val()
         });
         value = input.getHexBackgroundColor();
-        currentColor = getColorOfStatus(currentDocType, input.val());
+        currentColor = getStateColorFromStateSettingsPage(input.val());
         if (currentColor != null) {
           currentColor.value = value;
         } else {
@@ -168,50 +154,47 @@
     }
     return _results;
   };
+  getCurrentDocTypeOnStatesSettingsPage = function() {
+    if (location.hash === '#states') {
+      return $('.gwt-TreeItem-selected').text();
+    } else {
+      return null;
+    }
+  };
+  getStateColorFromStateSettingsPage = function(state) {
+    return getColorOfStatus(getCurrentDocTypeOnStatesSettingsPage(), state);
+  };
   drawColorPickers = function() {
-    var color, colorPickCall, curDiv, currentDocType, i, inputId, picker, status, _len, _ref, _results;
-    currentDocType = $('.gwt-TreeItem-selected').text();
+    var color, colorPickCall, i, inputId, jqStatusTextBox, picker, statusTextBox, _len, _ref, _results;
     _ref = $('input.gwt-TextBox[size="40"]');
     _results = [];
     for (i = 0, _len = _ref.length; i < _len; i++) {
-      status = _ref[i];
-      curDiv = $(status);
-      inputId = curDiv.attr('colorPId');
+      statusTextBox = _ref[i];
+      jqStatusTextBox = $(statusTextBox);
+      inputId = jqStatusTextBox.attr('colorPId');
       if ($('#color_picker_' + inputId).length === 0) {
-        curDiv.css({
+        jqStatusTextBox.css({
           background: 'white'
         });
-        if (!curDiv.attr('colorPId')) curDiv.attr('colorPId', i);
-        color = getColorOfStatus(currentDocType, curDiv.val());
+        if (!(inputId != null)) jqStatusTextBox.attr('colorPId', i);
+        color = getStateColorFromStateSettingsPage(jqStatusTextBox.val());
         if (color != null) {
-          curDiv.css({
+          jqStatusTextBox.css({
             background: color.value
           });
-          curDiv.attr('check', 'true');
         }
         picker = $('<td><div id="color_picker_' + i + '"></div></td>');
-        curDiv.parent().after(picker);
+        jqStatusTextBox.parent().after(picker);
         colorPickCall = function(hex, inputId) {
           return $('[colorPId=' + inputId + ']').css({
             background: '#' + hex
           });
         };
-        picker.colourPicker({
+        _results.push(picker.colourPicker({
           title: '',
           inputId: i,
           colorPickCallback: colorPickCall
-        });
-      }
-      if (!curDiv.attr('check')) {
-        color = getColorOfStatus(currentDocType, curDiv.val());
-        if (color != null) {
-          curDiv.css({
-            background: color.value
-          });
-          _results.push(curDiv.attr('check', 'true'));
-        } else {
-          _results.push(void 0);
-        }
+        }));
       } else {
         _results.push(void 0);
       }
