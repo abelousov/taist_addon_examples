@@ -1,137 +1,141 @@
 ->
 	utils = null
-	userSettings = []
 
 	start = (utilities, entryPoint) ->
 		utils = utilities
-		utils.wait.once (-> getCompanyName().length > 0), ->
-			getUserSettings ->
-				if entryPoint is 'user'
-					watchForRowsToRedraw()
-				else
-					drawColorSettings()
-
-	getCompanyName = -> $('.companyName>span').text()
-
-	getUserSettings = (callback) ->
-		utils.userData.get '', (
-			(error, value) ->
-				userSettings = value
-				callback()
-		), getCompanyName()
-
-	getStoredStateColor = (docType, state) ->
-		contKey = JSON.stringify
-			currentDocType: docType
-			status: state
-		for setting in userSettings
-			if setting.key == contKey
-				return setting
-		return null
-
-	getStateColorOnDocsPage = (state) ->
-		hash = location.hash
-		cutHash = hash
-		if (hash.indexOf('?') >= 0)
-			cutHash = hash.substr(0, hash.indexOf('?'))
-		for docHash in docMap
-			if docHash.hash == cutHash
-				return (getStoredStateColor docHash.key, state)?.value
-
-	getStateColorFromStateSettingsPage = (state) -> getStoredStateColor getCurrentDocTypeOnStatesSettingsPage(), state
-
-	setUserSettings = (setting, cb)-> utils.userData.set setting.key, setting.value, cb, getCompanyName()
-
-	watchForRowsToRedraw = ->
-		utils.wait.elementRender (-> getDocsTable().find """tbody tr"""), (rows) ->
-			redrawRows rows
-
-	redrawRows = (rows) ->
-		stateColumnIndex = getStateColumnIndex getDocsTable()
-		if stateColumnIndex
-			for row in rows
-				drawRow ($ row), stateColumnIndex
-
-	drawRow = (jqRow, stateColumnIndex) ->
-		state = $(jqRow.find('td')[stateColumnIndex]).find('[title]').text()
-		color = getStateColorOnDocsPage state
-		if color?
-			jqRow.children().attr('style', 'background:' + color + '!important')
-
-	getDocsTable = -> $ 'table.b-document-table'
-	getStateColumnIndex = (docsTable) ->
-		for column, i in docsTable.find('thead').find('tr[class!="floating-header"]').find 'th'
-			if $(column).find('[title="Статус"]').length > 0
-				return i
-
-		return null
-
-	drawColorSettings = ->
-		waitDrawButton (saveButton) ->
-			saveButton.click ->
-				saveCurrentStatesColors()
-				drawColorPickers()
-
-		onCurrentDocTypeChanged drawColorPickers
-
-	onCurrentDocTypeChanged = (callback) ->
-		currentDocType = '<No current doc type>'
-
-		docTypeOnStatesPageChanged = ->
-			newDocType = getCurrentDocTypeOnStatesSettingsPage()
-			return newDocType? and newDocType != currentDocType
-
-		utils.wait.repeat docTypeOnStatesPageChanged, ->
-			currentDocType = getCurrentDocTypeOnStatesSettingsPage()
-			callback()
-
-	waitDrawButton = (callback) ->
-		utils.wait.elementRender saveButtonSelector, callback
-
-	saveButtonSelector = '.b-popup-button-green'
-
-	saveCurrentStatesColors = ->
-		for inputObj in getStateInputs()
-			jqInput = $ inputObj
-			state = getStateFromInput jqInput
-			if state.length > 0
-				key = JSON.stringify
-					currentDocType: getCurrentDocTypeOnStatesSettingsPage()
-					status: state
-
-				value = jqInput.getHexBackgroundColor()
-				currentColor = getStateColorFromStateSettingsPage state
-				if currentColor?
-					currentColor.value = value
-				else
-					userSettings.push
-						key: key
-						value: value
-
-				setUserSettings {key, value}, ->
+		colorsStorage.init ->
+			if entryPoint is 'user'
+				rowsPainter.watchForRowsToRedraw()
+			else
+				settingsUI.draw()
 
 	getCurrentDocTypeOnStatesSettingsPage = -> if location.hash is '#states' then $('.gwt-TreeItem-selected').text() else null
 
-	getStateInputs = -> $('input.gwt-TextBox[size="40"]')
-	getStateFromInput = (input) -> input.val()
+	colorsStorage =
+		_userSettings: []
+		init: (callback) ->
+			utils.wait.once (=> @_getCompanyName().length > 0), =>
+				@_loadColorData @_getCompanyName(), callback
 
-	drawColorPickers = ->
-		for stateNameInput in getStateInputs()
-			drawColorPicker ($ stateNameInput)
+		_getCompanyName: -> $('.companyName>span').text()
 
-	drawColorPicker = (jqStateInput) ->
-		colorStateNameInput jqStateInput
-		addColorPicker jqStateInput
+		_loadColorData: (userKeyCommonForCompany, callback) ->
+			utils.userData.get '', (
+				(error, value) ->
+					@_userSettings = value
+					callback()
+			), userKeyCommonForCompany
 
-	getColorFromStateInput = (input) -> getStateColorFromStateSettingsPage getStateFromInput input
-	colorStateNameInput = (input) -> input.css {background: (getColorFromStateInput input)?.value ? 'white'}
-	addColorPicker = (input) ->
-		picker = $ '<td></td>'
-		input.parent().after picker
+		#TODO: возвращать непосредственно значение, а не объект
+		_getStoredStateColor: (docType, state) ->
+			for setting in @_userSettings when (setting.key is @_getColorKey docType, state)
+				return setting
 
-		picker.colourPicker
-			colorPickCallback: (hexColor) -> input.css {background: '#' + hexColor}
+		_getColorKey: (docType, state) -> JSON.stringify {currentDocType: docType, status: state}
 
+		getStateColorOnDocsPage: (state) ->
+			cutHash = location.hash
+			if (cutHash.indexOf('?') >= 0)
+				cutHash = cutHash.substr(0, cutHash.indexOf('?'))
+			for docHash in docMap
+				if docHash.hash == cutHash
+					return (@_getStoredStateColor docHash.key, state)?.value
+
+		getStateColorFromStateSettingsPage: (state) -> getStoredStateColor getCurrentDocTypeOnStatesSettingsPage(), state
+
+		_setUserSetting: (setting, cb)-> utils.userData.set setting.key, setting.value, cb, @_getCompanyName()
+
+		storeColor: (state, value, callback) ->
+			key = @_getColorKey getCurrentDocTypeOnStatesSettingsPage(), state
+
+			currentColor = @getStateColorFromStateSettingsPage state
+			if currentColor?
+				currentColor.value = value
+			else
+				@_userSettings.push {key, value}
+
+			@_setUserSetting {key, value}, callback
+
+	rowsPainter =
+		watchForRowsToRedraw: ->
+			utils.wait.elementRender (=> @_getDocsTable().find """tbody tr"""), (rows) => @_redrawRows rows
+
+		_redrawRows: (rows) ->
+			stateColumnIndex = @_getStateColumnIndex @_getDocsTable()
+			if stateColumnIndex
+				for row in rows
+					@_drawRow ($ row), stateColumnIndex
+
+		_drawRow: (jqRow, stateColumnIndex) ->
+			state = $(jqRow.find('td')[stateColumnIndex]).find('[title]').text()
+			color = getStateColorOnDocsPage state
+			if color?
+				jqRow.children().attr('style', 'background:' + color + '!important')
+
+		_getDocsTable: -> $ 'table.b-document-table'
+		_getStateColumnIndex: (docsTable) ->
+			for column, i in docsTable.find('thead').find('tr[class!="floating-header"]').find 'th'
+				if $(column).find('[title="Статус"]').length > 0
+					return i
+
+			return null
+
+	settingsUI =
+		draw: ->
+			@_waitDrawButton (saveButton) =>
+				saveButton.click =>
+					@_saveCurrentStatesColors()
+					@_drawColorPickers()
+
+			@_onCurrentDocTypeChanged => @_drawColorPickers()
+
+		_onCurrentDocTypeChanged: (callback) ->
+			currentDocType = '<No current doc type>'
+
+			docTypeOnStatesPageChanged = ->
+				newDocType = getCurrentDocTypeOnStatesSettingsPage()
+				return newDocType? and newDocType != currentDocType
+
+			utils.wait.repeat docTypeOnStatesPageChanged, ->
+				currentDocType = getCurrentDocTypeOnStatesSettingsPage()
+				callback()
+
+		_waitDrawButton: (callback) ->
+			utils.wait.elementRender @_saveButtonSelector, callback
+
+		_saveButtonSelector: '.b-popup-button-green'
+
+		_saveCurrentStatesColors: ->
+			for inputObj in @_getStateInputs()
+				jqInput = $ inputObj
+				state = @_getStateFromInput jqInput
+				if state.length > 0
+					colorsStorage.storeColor state, jqInput.getHexBackgroundColor(), ->
+
+
+		_getStateInputs: -> $('input.gwt-TextBox[size="40"]')
+		_getStateFromInput: (input) -> input.val()
+
+		_drawColorPickers: ->
+			for stateNameInput in @_getStateInputs()
+				@_drawColorPicker ($ stateNameInput)
+
+		_drawColorPicker: (jqStateInput) ->
+			@_updateStateInputWithStoredColor jqStateInput
+			@_addColorPicker jqStateInput
+
+		_updateStateInputWithStoredColor: (input) ->
+			storedColor = colorsStorage.getStateColorFromStateSettingsPage @_getStateFromInput input
+			@_setInputColor input, (storedColor)?.value ? 'white'
+
+		_setInputColor: (input, color) -> input.css {background: color}
+		_addColorPicker: (input) ->
+			picker = $ '<td></td>'
+			input.parent().after picker
+
+			self = @
+			picker.colourPicker
+				colorPickCallback: (hexColor) -> self._setInputColor input, '#' + hexColor
 
 	$.fn.getHexBackgroundColor = ->
 		rgb = $(this).css('background-color')

@@ -1,158 +1,16 @@
 
 (function() {
-  var addColorPicker, colorStateNameInput, docMap, drawColorPicker, drawColorPickers, drawColorSettings, drawRow, getColorFromStateInput, getCompanyName, getCurrentDocTypeOnStatesSettingsPage, getDocsTable, getStateColorFromStateSettingsPage, getStateColorOnDocsPage, getStateColumnIndex, getStateFromInput, getStateInputs, getStoredStateColor, getUserSettings, onCurrentDocTypeChanged, redrawRows, saveButtonSelector, saveCurrentStatesColors, setUserSettings, start, userSettings, utils, waitDrawButton, watchForRowsToRedraw;
+  var colorsStorage, docMap, getCurrentDocTypeOnStatesSettingsPage, rowsPainter, settingsUI, start, utils;
   utils = null;
-  userSettings = [];
   start = function(utilities, entryPoint) {
     utils = utilities;
-    return utils.wait.once((function() {
-      return getCompanyName().length > 0;
-    }), function() {
-      return getUserSettings(function() {
-        if (entryPoint === 'user') {
-          return watchForRowsToRedraw();
-        } else {
-          return drawColorSettings();
-        }
-      });
-    });
-  };
-  getCompanyName = function() {
-    return $('.companyName>span').text();
-  };
-  getUserSettings = function(callback) {
-    return utils.userData.get('', (function(error, value) {
-      userSettings = value;
-      return callback();
-    }), getCompanyName());
-  };
-  getStoredStateColor = function(docType, state) {
-    var contKey, setting, _i, _len;
-    contKey = JSON.stringify({
-      currentDocType: docType,
-      status: state
-    });
-    for (_i = 0, _len = userSettings.length; _i < _len; _i++) {
-      setting = userSettings[_i];
-      if (setting.key === contKey) return setting;
-    }
-    return null;
-  };
-  getStateColorOnDocsPage = function(state) {
-    var cutHash, docHash, hash, _i, _len, _ref;
-    hash = location.hash;
-    cutHash = hash;
-    if (hash.indexOf('?') >= 0) cutHash = hash.substr(0, hash.indexOf('?'));
-    for (_i = 0, _len = docMap.length; _i < _len; _i++) {
-      docHash = docMap[_i];
-      if (docHash.hash === cutHash) {
-        return (_ref = getStoredStateColor(docHash.key, state)) != null ? _ref.value : void 0;
-      }
-    }
-  };
-  getStateColorFromStateSettingsPage = function(state) {
-    return getStoredStateColor(getCurrentDocTypeOnStatesSettingsPage(), state);
-  };
-  setUserSettings = function(setting, cb) {
-    return utils.userData.set(setting.key, setting.value, cb, getCompanyName());
-  };
-  watchForRowsToRedraw = function() {
-    return utils.wait.elementRender((function() {
-      return getDocsTable().find("tbody tr");
-    }), function(rows) {
-      return redrawRows(rows);
-    });
-  };
-  redrawRows = function(rows) {
-    var row, stateColumnIndex, _i, _len, _results;
-    stateColumnIndex = getStateColumnIndex(getDocsTable());
-    if (stateColumnIndex) {
-      _results = [];
-      for (_i = 0, _len = rows.length; _i < _len; _i++) {
-        row = rows[_i];
-        _results.push(drawRow($(row), stateColumnIndex));
-      }
-      return _results;
-    }
-  };
-  drawRow = function(jqRow, stateColumnIndex) {
-    var color, state;
-    state = $(jqRow.find('td')[stateColumnIndex]).find('[title]').text();
-    color = getStateColorOnDocsPage(state);
-    if (color != null) {
-      return jqRow.children().attr('style', 'background:' + color + '!important');
-    }
-  };
-  getDocsTable = function() {
-    return $('table.b-document-table');
-  };
-  getStateColumnIndex = function(docsTable) {
-    var column, i, _len, _ref;
-    _ref = docsTable.find('thead').find('tr[class!="floating-header"]').find('th');
-    for (i = 0, _len = _ref.length; i < _len; i++) {
-      column = _ref[i];
-      if ($(column).find('[title="Статус"]').length > 0) return i;
-    }
-    return null;
-  };
-  drawColorSettings = function() {
-    waitDrawButton(function(saveButton) {
-      return saveButton.click(function() {
-        saveCurrentStatesColors();
-        return drawColorPickers();
-      });
-    });
-    return onCurrentDocTypeChanged(drawColorPickers);
-  };
-  onCurrentDocTypeChanged = function(callback) {
-    var currentDocType, docTypeOnStatesPageChanged;
-    currentDocType = '<No current doc type>';
-    docTypeOnStatesPageChanged = function() {
-      var newDocType;
-      newDocType = getCurrentDocTypeOnStatesSettingsPage();
-      return (newDocType != null) && newDocType !== currentDocType;
-    };
-    return utils.wait.repeat(docTypeOnStatesPageChanged, function() {
-      currentDocType = getCurrentDocTypeOnStatesSettingsPage();
-      return callback();
-    });
-  };
-  waitDrawButton = function(callback) {
-    return utils.wait.elementRender(saveButtonSelector, callback);
-  };
-  saveButtonSelector = '.b-popup-button-green';
-  saveCurrentStatesColors = function() {
-    var currentColor, inputObj, jqInput, key, state, value, _i, _len, _ref, _results;
-    _ref = getStateInputs();
-    _results = [];
-    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-      inputObj = _ref[_i];
-      jqInput = $(inputObj);
-      state = getStateFromInput(jqInput);
-      if (state.length > 0) {
-        key = JSON.stringify({
-          currentDocType: getCurrentDocTypeOnStatesSettingsPage(),
-          status: state
-        });
-        value = jqInput.getHexBackgroundColor();
-        currentColor = getStateColorFromStateSettingsPage(state);
-        if (currentColor != null) {
-          currentColor.value = value;
-        } else {
-          userSettings.push({
-            key: key,
-            value: value
-          });
-        }
-        _results.push(setUserSettings({
-          key: key,
-          value: value
-        }, function() {}));
+    return colorsStorage.init(function() {
+      if (entryPoint === 'user') {
+        return rowsPainter.watchForRowsToRedraw();
       } else {
-        _results.push(void 0);
+        return settingsUI.draw();
       }
-    }
-    return _results;
+    });
   };
   getCurrentDocTypeOnStatesSettingsPage = function() {
     if (location.hash === '#states') {
@@ -161,46 +19,205 @@
       return null;
     }
   };
-  getStateInputs = function() {
-    return $('input.gwt-TextBox[size="40"]');
-  };
-  getStateFromInput = function(input) {
-    return input.val();
-  };
-  drawColorPickers = function() {
-    var stateNameInput, _i, _len, _ref, _results;
-    _ref = getStateInputs();
-    _results = [];
-    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-      stateNameInput = _ref[_i];
-      _results.push(drawColorPicker($(stateNameInput)));
-    }
-    return _results;
-  };
-  drawColorPicker = function(jqStateInput) {
-    colorStateNameInput(jqStateInput);
-    return addColorPicker(jqStateInput);
-  };
-  getColorFromStateInput = function(input) {
-    return getStateColorFromStateSettingsPage(getStateFromInput(input));
-  };
-  colorStateNameInput = function(input) {
-    var _ref, _ref2;
-    return input.css({
-      background: (_ref = (_ref2 = getColorFromStateInput(input)) != null ? _ref2.value : void 0) != null ? _ref : 'white'
-    });
-  };
-  addColorPicker = function(input) {
-    var picker;
-    picker = $('<td></td>');
-    input.parent().after(picker);
-    return picker.colourPicker({
-      colorPickCallback: function(hexColor) {
-        return input.css({
-          background: '#' + hexColor
+  colorsStorage = {
+    _userSettings: [],
+    init: function(callback) {
+      var _this = this;
+      return utils.wait.once((function() {
+        return _this._getCompanyName().length > 0;
+      }), function() {
+        return _this._loadColorData(_this._getCompanyName(), callback);
+      });
+    },
+    _getCompanyName: function() {
+      return $('.companyName>span').text();
+    },
+    _loadColorData: function(userKeyCommonForCompany, callback) {
+      return utils.userData.get('', (function(error, value) {
+        this._userSettings = value;
+        return callback();
+      }), userKeyCommonForCompany);
+    },
+    _getStoredStateColor: function(docType, state) {
+      var setting, _i, _len, _ref;
+      _ref = this._userSettings;
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        setting = _ref[_i];
+        if (setting.key === this._getColorKey(docType, state)) return setting;
+      }
+    },
+    _getColorKey: function(docType, state) {
+      return JSON.stringify({
+        currentDocType: docType,
+        status: state
+      });
+    },
+    getStateColorOnDocsPage: function(state) {
+      var cutHash, docHash, _i, _len, _ref;
+      cutHash = location.hash;
+      if (cutHash.indexOf('?') >= 0) {
+        cutHash = cutHash.substr(0, cutHash.indexOf('?'));
+      }
+      for (_i = 0, _len = docMap.length; _i < _len; _i++) {
+        docHash = docMap[_i];
+        if (docHash.hash === cutHash) {
+          return (_ref = this._getStoredStateColor(docHash.key, state)) != null ? _ref.value : void 0;
+        }
+      }
+    },
+    getStateColorFromStateSettingsPage: function(state) {
+      return getStoredStateColor(getCurrentDocTypeOnStatesSettingsPage(), state);
+    },
+    _setUserSetting: function(setting, cb) {
+      return utils.userData.set(setting.key, setting.value, cb, this._getCompanyName());
+    },
+    storeColor: function(state, value, callback) {
+      var currentColor, key;
+      key = this._getColorKey(getCurrentDocTypeOnStatesSettingsPage(), state);
+      currentColor = this.getStateColorFromStateSettingsPage(state);
+      if (currentColor != null) {
+        currentColor.value = value;
+      } else {
+        this._userSettings.push({
+          key: key,
+          value: value
         });
       }
-    });
+      return this._setUserSetting({
+        key: key,
+        value: value
+      }, callback);
+    }
+  };
+  rowsPainter = {
+    watchForRowsToRedraw: function() {
+      var _this = this;
+      return utils.wait.elementRender((function() {
+        return _this._getDocsTable().find("tbody tr");
+      }), function(rows) {
+        return _this._redrawRows(rows);
+      });
+    },
+    _redrawRows: function(rows) {
+      var row, stateColumnIndex, _i, _len, _results;
+      stateColumnIndex = this._getStateColumnIndex(this._getDocsTable());
+      if (stateColumnIndex) {
+        _results = [];
+        for (_i = 0, _len = rows.length; _i < _len; _i++) {
+          row = rows[_i];
+          _results.push(this._drawRow($(row), stateColumnIndex));
+        }
+        return _results;
+      }
+    },
+    _drawRow: function(jqRow, stateColumnIndex) {
+      var color, state;
+      state = $(jqRow.find('td')[stateColumnIndex]).find('[title]').text();
+      color = getStateColorOnDocsPage(state);
+      if (color != null) {
+        return jqRow.children().attr('style', 'background:' + color + '!important');
+      }
+    },
+    _getDocsTable: function() {
+      return $('table.b-document-table');
+    },
+    _getStateColumnIndex: function(docsTable) {
+      var column, i, _len, _ref;
+      _ref = docsTable.find('thead').find('tr[class!="floating-header"]').find('th');
+      for (i = 0, _len = _ref.length; i < _len; i++) {
+        column = _ref[i];
+        if ($(column).find('[title="Статус"]').length > 0) return i;
+      }
+      return null;
+    }
+  };
+  settingsUI = {
+    draw: function() {
+      var _this = this;
+      this._waitDrawButton(function(saveButton) {
+        return saveButton.click(function() {
+          _this._saveCurrentStatesColors();
+          return _this._drawColorPickers();
+        });
+      });
+      return this._onCurrentDocTypeChanged(function() {
+        return _this._drawColorPickers();
+      });
+    },
+    _onCurrentDocTypeChanged: function(callback) {
+      var currentDocType, docTypeOnStatesPageChanged;
+      currentDocType = '<No current doc type>';
+      docTypeOnStatesPageChanged = function() {
+        var newDocType;
+        newDocType = getCurrentDocTypeOnStatesSettingsPage();
+        return (newDocType != null) && newDocType !== currentDocType;
+      };
+      return utils.wait.repeat(docTypeOnStatesPageChanged, function() {
+        currentDocType = getCurrentDocTypeOnStatesSettingsPage();
+        return callback();
+      });
+    },
+    _waitDrawButton: function(callback) {
+      return utils.wait.elementRender(this._saveButtonSelector, callback);
+    },
+    _saveButtonSelector: '.b-popup-button-green',
+    _saveCurrentStatesColors: function() {
+      var inputObj, jqInput, state, _i, _len, _ref, _results;
+      _ref = this._getStateInputs();
+      _results = [];
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        inputObj = _ref[_i];
+        jqInput = $(inputObj);
+        state = this._getStateFromInput(jqInput);
+        if (state.length > 0) {
+          _results.push(colorsStorage.storeColor(state, jqInput.getHexBackgroundColor(), function() {}));
+        } else {
+          _results.push(void 0);
+        }
+      }
+      return _results;
+    },
+    _getStateInputs: function() {
+      return $('input.gwt-TextBox[size="40"]');
+    },
+    _getStateFromInput: function(input) {
+      return input.val();
+    },
+    _drawColorPickers: function() {
+      var stateNameInput, _i, _len, _ref, _results;
+      _ref = this._getStateInputs();
+      _results = [];
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        stateNameInput = _ref[_i];
+        _results.push(this._drawColorPicker($(stateNameInput)));
+      }
+      return _results;
+    },
+    _drawColorPicker: function(jqStateInput) {
+      this._updateStateInputWithStoredColor(jqStateInput);
+      return this._addColorPicker(jqStateInput);
+    },
+    _updateStateInputWithStoredColor: function(input) {
+      var storedColor, _ref, _ref2;
+      storedColor = colorsStorage.getStateColorFromStateSettingsPage(this._getStateFromInput(input));
+      return this._setInputColor(input, (_ref = (_ref2 = storedColor) != null ? _ref2.value : void 0) != null ? _ref : 'white');
+    },
+    _setInputColor: function(input, color) {
+      return input.css({
+        background: color
+      });
+    },
+    _addColorPicker: function(input) {
+      var picker, self;
+      picker = $('<td></td>');
+      input.parent().after(picker);
+      self = this;
+      return picker.colourPicker({
+        colorPickCallback: function(hexColor) {
+          return self._setInputColor(input, '#' + hexColor);
+        }
+      });
+    }
   };
   $.fn.getHexBackgroundColor = function() {
     var hex, hex_rgb, rgb;
