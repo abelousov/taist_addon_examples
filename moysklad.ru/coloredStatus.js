@@ -1,6 +1,6 @@
 
 (function() {
-  var docMap, drawColorPickers, drawColorSettings, drawRow, getColorOfStatus, getColorOfStatusByHash, getCompanyName, getCurrentDocTypeOnStatesSettingsPage, getDocsTable, getStateColorFromStateSettingsPage, getStatusColumnIndex, getUserSettings, onCurrentDocTypeChanged, redrawRows, saveButtonSelector, saveCurrentStatesColors, setUserSettings, start, userSettings, utils, waitDrawButton, watchForRowsToRedraw;
+  var docMap, drawColorPickers, drawColorSettings, drawRow, getColorOfStatus, getColorOfStatusByHash, getCompanyName, getCurrentDocTypeOnStatesSettingsPage, getDocsTable, getStateColorFromStateSettingsPage, getStateNameInputs, getStatusColumnIndex, getUserSettings, onCurrentDocTypeChanged, redrawRows, saveButtonSelector, saveCurrentStatesColors, setUserSettings, start, userSettings, utils, waitDrawButton, watchForRowsToRedraw;
   utils = null;
   userSettings = [];
   start = function(utilities, entryPoint) {
@@ -123,7 +123,7 @@
   saveButtonSelector = '.b-popup-button-green';
   saveCurrentStatesColors = function() {
     var currentColor, input, inputObj, key, value, _i, _len, _ref, _results;
-    _ref = $('[colorPId]');
+    _ref = getStateNameInputs();
     _results = [];
     for (_i = 0, _len = _ref.length; _i < _len; _i++) {
       inputObj = _ref[_i];
@@ -164,9 +164,12 @@
   getStateColorFromStateSettingsPage = function(state) {
     return getColorOfStatus(getCurrentDocTypeOnStatesSettingsPage(), state);
   };
+  getStateNameInputs = function() {
+    return $('input.gwt-TextBox[size="40"]');
+  };
   drawColorPickers = function() {
     var color, colorPickCall, i, inputId, jqStatusTextBox, picker, statusTextBox, _len, _ref, _results;
-    _ref = $('input.gwt-TextBox[size="40"]');
+    _ref = getStateNameInputs();
     _results = [];
     for (i = 0, _len = _ref.length; i < _len; i++) {
       statusTextBox = _ref[i];

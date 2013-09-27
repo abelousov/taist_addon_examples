@@ -90,7 +90,7 @@
 	saveButtonSelector = '.b-popup-button-green'
 
 	saveCurrentStatesColors = ->
-		for inputObj in $ '[colorPId]'
+		for inputObj in getStateNameInputs()
 			input = $ inputObj
 			value = input.val()
 			if value.length
@@ -113,8 +113,10 @@
 
 	getStateColorFromStateSettingsPage = (state) -> getColorOfStatus getCurrentDocTypeOnStatesSettingsPage(), state
 
+	getStateNameInputs = -> $('input.gwt-TextBox[size="40"]')
+
 	drawColorPickers = ->
-		for statusTextBox, i in $('input.gwt-TextBox[size="40"]')
+		for statusTextBox, i in getStateNameInputs()
 			jqStatusTextBox = $(statusTextBox)
 			inputId = jqStatusTextBox.attr('colorPId')
 			if $('#color_picker_' + inputId).length == 0
