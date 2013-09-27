@@ -2,13 +2,14 @@
 	utils = null
 	userSettings = []
 
-	start = (utilities) ->
+	start = (utilities, entryPoint) ->
 		utils = utilities
 		utils.wait.once (->getCompanyName().length > 0), ->
 			getUserSettings ->
-				waitForStatesSettingsUI()
-				waitDrawButton()
-				waitForRowsToRedraw()
+				if entryPoint is 'user'
+					colorRows()
+				else
+					drawColorSettings()
 
 	getCompanyName = -> $('.companyName>span').text()
 
@@ -39,7 +40,7 @@
 
 	setUserSettings = (setting, cb)-> utils.userData.set setting.key, setting.value, cb, getCompanyName()
 
-	waitForRowsToRedraw = ->
+	colorRows = ->
 		currentRenderedAttrValue = Math.random()
 
 		utils.wait.repeat (-> (getDocsTable().find "tbody tr[renderedColor!=\"#{currentRenderedAttrValue}\"]").length > 0), ->
@@ -77,6 +78,47 @@
 
 		return index
 
+	drawColorSettings = ->
+		waitDrawButton()
+		wait = ->
+			utils.wait.once statesSettingsDisplayed, ->
+			setTimeout (->
+				drawColorPickers()
+				wait()), 0
+
+		wait()
+
+	statesSettingsDisplayed = -> onStatesSettingsPage() and someStatesExist()
+	onStatesSettingsPage = -> location.href.indexOf('app/admin/#states') > 0
+	someStatesExist = -> $('input.gwt-TextBox[size="40"]').length > 0
+
+	waitDrawButton = ->
+		utils.wait.elementRender saveButtonSelector, (saveButton) ->
+			saveButton.click saveCurrentStatesColors
+
+	saveButtonSelector = '.b-popup-button-green'
+
+	saveCurrentStatesColors = ->
+		currentDocType = ($ '.gwt-TreeItem-selected').text()
+		for inputObj in $ '[colorPId]'
+			input = $ inputObj
+			value = input.val()
+			if value.length
+				key = JSON.stringify
+					currentDocType: currentDocType
+					status: input.val()
+
+				value = input.getHexBackgroundColor()
+				currentColor = getColorOfStatus currentDocType, input.val()
+				if currentColor?
+					currentColor.value = value
+				else
+					userSettings.push
+						key: key
+						value: value
+
+				setUserSettings {key, value}, ->
+
 	drawColorPickers = ->
 		currentDocType = $('.gwt-TreeItem-selected').text()
 		for status, i in $('input.gwt-TextBox[size="40"]')
@@ -107,51 +149,6 @@
 					curDiv.css
 						background: color.value
 					curDiv.attr('check', 'true')
-
-	waitForStatesSettingsUI = ->
-		firstTimeOnSettingsPage = true
-		wait = ->
-			utils.wait.once statesSettingsDisplayed, ->
-			setTimeout (->
-				if firstTimeOnSettingsPage
-					waitDrawButton()
-					firstTimeOnSettingsPage = false
-				drawColorPickers()
-				wait()), 0
-
-		wait()
-
-	waitDrawButton = ->
-		utils.wait.elementRender saveButtonSelector, (saveButton) ->
-			saveButton.click saveCurrentStatesColors
-
-	saveButtonSelector = '.b-popup-button-green'
-
-	saveCurrentStatesColors = ->
-		currentDocType = ($ '.gwt-TreeItem-selected').text()
-		for inputObj in $ '[colorPId]'
-			input = $ inputObj
-			value = input.val()
-			if value.length
-				key = JSON.stringify
-					currentDocType: currentDocType
-					status: input.val()
-
-				value = input.getHexBackgroundColor()
-				currentColor = getColorOfStatus currentDocType, input.val()
-				if currentColor?
-					currentColor.value = value
-				else
-					userSettings.push
-						key: key
-						value: value
-
-				setUserSettings {key, value}, ->
-
-	statesSettingsDisplayed = -> onStatesSettingsPage() and someStatesExist()
-
-	onStatesSettingsPage = -> location.href.indexOf('app/admin/#states') > 0
-	someStatesExist = -> $('input.gwt-TextBox[size="40"]').length > 0
 
 	$.fn.getHexBackgroundColor = ->
 		rgb = $(this).css('background-color')

@@ -1,17 +1,19 @@
 
 (function() {
-  var docMap, drawColorPickers, drawRow, getColorOfStatus, getColorOfStatusByHash, getCompanyName, getDocsTable, getRowsToRedraw, getStatusColumnIndex, getUserSettings, onStatesSettingsPage, redrawRows, saveButtonSelector, saveCurrentStatesColors, setUserSettings, someStatesExist, start, statesSettingsDisplayed, userSettings, utils, waitDrawButton, waitForRowsToRedraw, waitForStatesSettingsUI;
+  var colorRows, docMap, drawColorPickers, drawColorSettings, drawRow, getColorOfStatus, getColorOfStatusByHash, getCompanyName, getDocsTable, getRowsToRedraw, getStatusColumnIndex, getUserSettings, onStatesSettingsPage, redrawRows, saveButtonSelector, saveCurrentStatesColors, setUserSettings, someStatesExist, start, statesSettingsDisplayed, userSettings, utils, waitDrawButton;
   utils = null;
   userSettings = [];
-  start = function(utilities) {
+  start = function(utilities, entryPoint) {
     utils = utilities;
     return utils.wait.once((function() {
       return getCompanyName().length > 0;
     }), function() {
       return getUserSettings(function() {
-        waitForStatesSettingsUI();
-        waitDrawButton();
-        return waitForRowsToRedraw();
+        if (entryPoint === 'user') {
+          return colorRows();
+        } else {
+          return drawColorSettings();
+        }
       });
     });
   };
@@ -52,7 +54,7 @@
   setUserSettings = function(setting, cb) {
     return utils.userData.set(setting.key, setting.value, cb, getCompanyName());
   };
-  waitForRowsToRedraw = function() {
+  colorRows = function() {
     var currentRenderedAttrValue;
     currentRenderedAttrValue = Math.random();
     utils.wait.repeat((function() {
@@ -108,6 +110,67 @@
     }
     return index;
   };
+  drawColorSettings = function() {
+    var wait;
+    waitDrawButton();
+    wait = function() {
+      utils.wait.once(statesSettingsDisplayed, function() {});
+      return setTimeout((function() {
+        drawColorPickers();
+        return wait();
+      }), 0);
+    };
+    return wait();
+  };
+  statesSettingsDisplayed = function() {
+    return onStatesSettingsPage() && someStatesExist();
+  };
+  onStatesSettingsPage = function() {
+    return location.href.indexOf('app/admin/#states') > 0;
+  };
+  someStatesExist = function() {
+    return $('input.gwt-TextBox[size="40"]').length > 0;
+  };
+  waitDrawButton = function() {
+    return utils.wait.elementRender(saveButtonSelector, function(saveButton) {
+      return saveButton.click(saveCurrentStatesColors);
+    });
+  };
+  saveButtonSelector = '.b-popup-button-green';
+  saveCurrentStatesColors = function() {
+    var currentColor, currentDocType, input, inputObj, key, value, _i, _len, _ref, _results;
+    currentDocType = ($('.gwt-TreeItem-selected')).text();
+    _ref = $('[colorPId]');
+    _results = [];
+    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      inputObj = _ref[_i];
+      input = $(inputObj);
+      value = input.val();
+      if (value.length) {
+        key = JSON.stringify({
+          currentDocType: currentDocType,
+          status: input.val()
+        });
+        value = input.getHexBackgroundColor();
+        currentColor = getColorOfStatus(currentDocType, input.val());
+        if (currentColor != null) {
+          currentColor.value = value;
+        } else {
+          userSettings.push({
+            key: key,
+            value: value
+          });
+        }
+        _results.push(setUserSettings({
+          key: key,
+          value: value
+        }, function() {}));
+      } else {
+        _results.push(void 0);
+      }
+    }
+    return _results;
+  };
   drawColorPickers = function() {
     var color, colorPickCall, curDiv, currentDocType, i, inputId, picker, status, _len, _ref, _results;
     currentDocType = $('.gwt-TreeItem-selected').text();
@@ -157,71 +220,6 @@
       }
     }
     return _results;
-  };
-  waitForStatesSettingsUI = function() {
-    var firstTimeOnSettingsPage, wait;
-    firstTimeOnSettingsPage = true;
-    wait = function() {
-      utils.wait.once(statesSettingsDisplayed, function() {});
-      return setTimeout((function() {
-        if (firstTimeOnSettingsPage) {
-          waitDrawButton();
-          firstTimeOnSettingsPage = false;
-        }
-        drawColorPickers();
-        return wait();
-      }), 0);
-    };
-    return wait();
-  };
-  waitDrawButton = function() {
-    return utils.wait.elementRender(saveButtonSelector, function(saveButton) {
-      return saveButton.click(saveCurrentStatesColors);
-    });
-  };
-  saveButtonSelector = '.b-popup-button-green';
-  saveCurrentStatesColors = function() {
-    var currentColor, currentDocType, input, inputObj, key, value, _i, _len, _ref, _results;
-    currentDocType = ($('.gwt-TreeItem-selected')).text();
-    _ref = $('[colorPId]');
-    _results = [];
-    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-      inputObj = _ref[_i];
-      input = $(inputObj);
-      value = input.val();
-      if (value.length) {
-        key = JSON.stringify({
-          currentDocType: currentDocType,
-          status: input.val()
-        });
-        value = input.getHexBackgroundColor();
-        currentColor = getColorOfStatus(currentDocType, input.val());
-        if (currentColor != null) {
-          currentColor.value = value;
-        } else {
-          userSettings.push({
-            key: key,
-            value: value
-          });
-        }
-        _results.push(setUserSettings({
-          key: key,
-          value: value
-        }, function() {}));
-      } else {
-        _results.push(void 0);
-      }
-    }
-    return _results;
-  };
-  statesSettingsDisplayed = function() {
-    return onStatesSettingsPage() && someStatesExist();
-  };
-  onStatesSettingsPage = function() {
-    return location.href.indexOf('app/admin/#states') > 0;
-  };
-  someStatesExist = function() {
-    return $('input.gwt-TextBox[size="40"]').length > 0;
   };
   $.fn.getHexBackgroundColor = function() {
     var hex, hex_rgb, rgb;
