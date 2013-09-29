@@ -9,10 +9,8 @@
 			else
 				settingsUI.draw()
 
-	getCurrentDocTypeOnStatesSettingsPage = -> if location.hash is '#states' then $('.gwt-TreeItem-selected').text() else null
-
 	colorsStorage =
-		_userSettings: []
+		_userSettings: {}
 		init: (callback) ->
 			utils.wait.once (=> @_getCompanyName().length > 0), =>
 				@_loadColorData @_getCompanyName(), callback
@@ -21,60 +19,50 @@
 
 		_loadColorData: (userKeyCommonForCompany, callback) ->
 			utils.userData.get '', (
-				(error, value) ->
-					@_userSettings = value
+				(error, allSettings) =>
+					#TODO: изменить на использование ключа, и убрать вариант "без ключа" из API
+					for setting in allSettings
+						@_userSettings[setting.key] = setting.value
 					callback()
 			), userKeyCommonForCompany
 
-		#TODO: возвращать непосредственно значение, а не объект
-		_getStoredStateColor: (docType, state) ->
-			for setting in @_userSettings when (setting.key is @_getColorKey docType, state)
-				return setting
+		getStateColor: (docType, state) -> @_userSettings[@_getColorKey docType, state]
 
 		_getColorKey: (docType, state) -> JSON.stringify {currentDocType: docType, status: state}
 
-		getStateColorOnDocsPage: (state) ->
-			cutHash = location.hash
-			if (cutHash.indexOf('?') >= 0)
-				cutHash = cutHash.substr(0, cutHash.indexOf('?'))
-			for docHash in docMap
-				if docHash.hash == cutHash
-					return (@_getStoredStateColor docHash.key, state)?.value
+		_storeColorOnServer: (key, color, cb)-> utils.userData.set key, color, cb, @_getCompanyName()
 
-		getStateColorFromStateSettingsPage: (state) -> getStoredStateColor getCurrentDocTypeOnStatesSettingsPage(), state
-
-		_setUserSetting: (setting, cb)-> utils.userData.set setting.key, setting.value, cb, @_getCompanyName()
-
-		storeColor: (state, value, callback) ->
-			key = @_getColorKey getCurrentDocTypeOnStatesSettingsPage(), state
-
-			currentColor = @getStateColorFromStateSettingsPage state
-			if currentColor?
-				currentColor.value = value
-			else
-				@_userSettings.push {key, value}
-
-			@_setUserSetting {key, value}, callback
+		storeColor: (docType, state, color, callback) ->
+			key = @_getColorKey docType, state
+			@_userSettings[key] = color
+			@_storeColorOnServer key, color, callback
 
 	rowsPainter =
 		watchForRowsToRedraw: ->
-			utils.wait.elementRender (=> @_getDocsTable().find """tbody tr"""), (rows) => @_redrawRows rows
+			utils.wait.elementRender (=> @_getDocsTable().find """tbody tr"""), (row) => @_redrawRow row
 
-		_redrawRows: (rows) ->
+		_redrawRow: (row) ->
 			stateColumnIndex = @_getStateColumnIndex @_getDocsTable()
-			if stateColumnIndex
-				for row in rows
-					@_drawRow ($ row), stateColumnIndex
+			if stateColumnIndex?
+				state = @_getRowStateByIndex row, stateColumnIndex
+				color = colorsStorage.getStateColor @getCurrentDocType(), state
+				if color?
+					@_colorRow row, color
 
-		_drawRow: (jqRow, stateColumnIndex) ->
-			state = $(jqRow.find('td')[stateColumnIndex]).find('[title]').text()
-			color = getStateColorOnDocsPage state
-			if color?
-				jqRow.children().attr('style', 'background:' + color + '!important')
+		_getRowStateByIndex: (row, index) -> $(row.find('td')[index]).find('[title]').text()
+		_colorRow: (row, color) -> row.children().attr('style', 'background:' + color + '!important')
+
+		getCurrentDocType: ->
+			hashContents = location.hash.substring 1
+			if (hashContents.indexOf('?') >= 0)
+				hashContents = hashContents.substr(0, hashContents.indexOf('?'))
+
+			return docTypesByHashes[hashContents]
 
 		_getDocsTable: -> $ 'table.b-document-table'
 		_getStateColumnIndex: (docsTable) ->
-			for column, i in docsTable.find('thead').find('tr[class!="floating-header"]').find 'th'
+			columnNames = docsTable.find('thead').find('tr[class!="floating-header"]').find 'th'
+			for column, i in columnNames
 				if $(column).find('[title="Статус"]').length > 0
 					return i
 
@@ -84,34 +72,29 @@
 		draw: ->
 			@_waitDrawButton (saveButton) =>
 				saveButton.click =>
-					@_saveCurrentStatesColors()
 					@_drawColorPickers()
 
-			@_onCurrentDocTypeChanged => @_drawColorPickers()
+			@_onCurrentDocTypeChange => @_drawColorPickers()
 
-		_onCurrentDocTypeChanged: (callback) ->
-			currentDocType = '<No current doc type>'
+		_getCurrentDocType: -> if location.hash is '#states' then $('.gwt-TreeItem-selected').text() else null
 
-			docTypeOnStatesPageChanged = ->
-				newDocType = getCurrentDocTypeOnStatesSettingsPage()
-				return newDocType? and newDocType != currentDocType
+		_onCurrentDocTypeChange: (callback) ->
+			utils.wait.repeat (=> @_checkIfDocTypeChanged()), callback
 
-			utils.wait.repeat docTypeOnStatesPageChanged, ->
-				currentDocType = getCurrentDocTypeOnStatesSettingsPage()
-				callback()
+		_checkIfDocTypeChanged: ->
+			newDocType = @_getCurrentDocType()
+			if newDocType? and newDocType != @_currentDocType
+				@_currentDocType = newDocType
+				true
+			else
+				false
+
+		_currentDocType: null
 
 		_waitDrawButton: (callback) ->
 			utils.wait.elementRender @_saveButtonSelector, callback
 
 		_saveButtonSelector: '.b-popup-button-green'
-
-		_saveCurrentStatesColors: ->
-			for inputObj in @_getStateInputs()
-				jqInput = $ inputObj
-				state = @_getStateFromInput jqInput
-				if state.length > 0
-					colorsStorage.storeColor state, jqInput.getHexBackgroundColor(), ->
-
 
 		_getStateInputs: -> $('input.gwt-TextBox[size="40"]')
 		_getStateFromInput: (input) -> input.val()
@@ -125,17 +108,24 @@
 			@_addColorPicker jqStateInput
 
 		_updateStateInputWithStoredColor: (input) ->
-			storedColor = colorsStorage.getStateColorFromStateSettingsPage @_getStateFromInput input
-			@_setInputColor input, (storedColor)?.value ? 'white'
+			storedColor = colorsStorage.getStateColor @_getCurrentDocType(), @_getStateFromInput input
+			@_setInputColor input, storedColor ? 'white'
 
 		_setInputColor: (input, color) -> input.css {background: color}
+			
+		changeStateColor: (input, newColor) ->
+			colorsStorage.storeColor @_getCurrentDocType(), (@_getStateFromInput input), newColor, =>
+				@_updateStateInputWithStoredColor input
+			
 		_addColorPicker: (input) ->
 			picker = $ '<td></td>'
 			input.parent().after picker
 
 			self = @
 			picker.colourPicker
-				colorPickCallback: (hexColor) -> self._setInputColor input, '#' + hexColor
+				colorPickCallback: (hexColor) ->
+					console.log "color picked: #{hexColor}"
+					self.changeStateColor input, '#' + hexColor
 
 	$.fn.getHexBackgroundColor = ->
 		rgb = $(this).css('background-color')
@@ -157,7 +147,7 @@
 		speed: 500,
 		openTxt: 'Open colour picker'
 		inputId: 0
-		colorPickCallback: (hex, inputId)->
+		colorPickCallback: ->
 		}, conf
 
 		colors = ['99', 'CC', 'FF']
@@ -210,29 +200,28 @@
 				return false
 
 
-	docMap =[
-		{key: "Заказ поставщику", hash: "#purchaseorder"},
-		{key: "Счет поставщика", hash: "#invoicein"},
-		{key: "Приёмка", hash: "#supply"},
-		{key: "Возврат поставщику", hash: "#purchasereturn"},
-		{key: "Счёт-фактура полученный", hash: "#facturein"},
-		{key: "Заказ покупателя", hash: "#customerorder"},
-		{key: "Счет покупателю", hash: "#invoiceout"},
-		{key: "Отгрузка", hash: "#demand"},
-		{key: "Возврат покупателя", hash: "#salesreturn"},
-		{key: "Счёт-фактура выданный", hash: "#factureout"},
-		{key: "Прайс-лист", hash: "#pricelist"},
-		{key: "Списание", hash: "#loss"},
-		{key: "Оприходование", hash: "#enter"},
-		{key: "Перемещение", hash: "#move"},
-		{key: "Инвентаризация", hash: "#inventory"},
-		{key: "Технологическая операция", hash: "#processing"},
-		{key: "Заказ на производство", hash: "#processingorder"},
-		{key: "Внутренний заказ", hash: "#internalorder"},
-		{key: "Входящий платеж", hash: "#paymentin"},
-		{key: "Приходный ордер", hash: "#cashin"},
-		{key: "Исходящий платеж", hash: "#paymentout"},
-		{key: "Расходный ордер", hash: "#cashout"}
-	]
+	docTypesByHashes = 
+		purchaseorder: "Заказ поставщику"
+		invoicein: "Счет поставщика"
+		supply: "Приёмка"
+		purchasereturn: "Возврат поставщику"
+		facturein: "Счёт-фактура полученный"
+		customerorder: "Заказ покупателя"
+		invoiceout: "Счет покупателю"
+		demand: "Отгрузка"
+		salesreturn: "Возврат покупателя"
+		factureout: "Счёт-фактура выданный"
+		pricelist: "Прайс-лист"
+		loss: "Списание"
+		enter: "Оприходование"
+		move: "Перемещение"
+		inventory: "Инвентаризация"
+		processing: "Технологическая операция"
+		processingorder: "Заказ на производство"
+		internalorder: "Внутренний заказ"
+		paymentin: "Входящий платеж"
+		cashin: "Приходный ордер"
+		paymentout: "Исходящий платеж"
+		cashout: "Расходный ордер"
 
 	return {start}
