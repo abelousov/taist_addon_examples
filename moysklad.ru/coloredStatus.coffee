@@ -7,35 +7,33 @@
 			if entryPoint is 'user'
 				rowsPainter.watchForRowsToRedraw()
 			else
-				settingsUI.draw()
+				settingsUI.waitToRedraw()
 
 	colorsStorage =
-		_userSettings: {}
+		_stateColors: {}
 		init: (callback) ->
 			utils.wait.once (=> @_getCompanyName().length > 0), =>
 				@_loadColorData @_getCompanyName(), callback
 
 		_getCompanyName: -> $('.companyName>span').text()
 
+		_colorsKey: 'stateColors'
+
 		_loadColorData: (userKeyCommonForCompany, callback) ->
-			utils.userData.get '', (
-				(error, allSettings) =>
-					#TODO: изменить на использование ключа, и убрать вариант "без ключа" из API
-					for setting in allSettings
-						@_userSettings[setting.key] = setting.value
+			utils.userData.get @_colorsKey, (
+				(error, stateColors) =>
+					@_stateColors = stateColors ? {}
 					callback()
 			), userKeyCommonForCompany
 
-		getStateColor: (docType, state) -> @_userSettings[@_getColorKey docType, state]
+		getStateColor: (docType, state) -> @_stateColors[docType]?[state]
 
-		_getColorKey: (docType, state) -> JSON.stringify {currentDocType: docType, status: state}
-
-		_storeColorOnServer: (key, color, cb)-> utils.userData.set key, color, cb, @_getCompanyName()
+		_storeColorsOnServer: (cb) -> utils.userData.set @_colorsKey, @_stateColors, cb, @_getCompanyName()
 
 		storeColor: (docType, state, color, callback) ->
-			key = @_getColorKey docType, state
-			@_userSettings[key] = color
-			@_storeColorOnServer key, color, callback
+			docTypeColors = @_stateColors[docType] ?= {}
+			docTypeColors[state] = color
+			@_storeColorsOnServer callback
 
 	rowsPainter =
 		watchForRowsToRedraw: ->
@@ -69,14 +67,15 @@
 			return null
 
 	settingsUI =
-		draw: ->
+		waitToRedraw: ->
 			@_waitDrawButton (saveButton) =>
 				saveButton.click =>
-					@_drawColorPickers()
+					@_redrawColorPickers()
 
 			@_onCurrentDocTypeChange => @_drawColorPickers()
 
-		_getCurrentDocType: -> if location.hash is '#states' then $('.gwt-TreeItem-selected').text() else null
+		_waitDrawButton: (callback) ->
+			utils.wait.elementRender @_saveButtonSelector, callback
 
 		_onCurrentDocTypeChange: (callback) ->
 			utils.wait.repeat (=> @_checkIfDocTypeChanged()), callback
@@ -89,14 +88,19 @@
 			else
 				false
 
-		_currentDocType: null
+		_getCurrentDocType: -> if location.hash is '#states' then $('.gwt-TreeItem-selected').text() else null
 
-		_waitDrawButton: (callback) ->
-			utils.wait.elementRender @_saveButtonSelector, callback
+		_currentDocType: null
 
 		_saveButtonSelector: '.b-popup-button-green'
 
 		_getStateInputs: -> $('input.gwt-TextBox[size="40"]')
+
+		_redrawColorPickers: ->
+			utils.wait.once (=> @_colorPickersRemoved()), (=> @_drawColorPickers())
+
+		_colorPickersRemoved: -> $('.taistColorPicker').length is 0
+
 		_getStateFromInput: (input) -> input.val()
 
 		_drawColorPickers: ->
@@ -113,19 +117,22 @@
 
 		_setInputColor: (input, color) -> input.css {background: color}
 			
-		changeStateColor: (input, newColor) ->
+		_changeStateColor: (input, newColor) ->
 			colorsStorage.storeColor @_getCurrentDocType(), (@_getStateFromInput input), newColor, =>
 				@_updateStateInputWithStoredColor input
 			
 		_addColorPicker: (input) ->
-			picker = $ '<td></td>'
-			input.parent().after picker
+			oldPickerCell = input.parent().next()
+			oldPickerCell.hide()
 
-			self = @
-			picker.colourPicker
-				colorPickCallback: (hexColor) ->
-					console.log "color picked: #{hexColor}"
-					self.changeStateColor input, '#' + hexColor
+			picker = $ '<td class="taistColorPicker"></td>'
+			oldPickerCell.after picker
+
+			colorPickCallback = (hexColor) =>
+				console.log "color picked: #{hexColor}"
+				@_changeStateColor input, '#' + hexColor
+
+			picker.colourPicker {colorPickCallback}
 
 	$.fn.getHexBackgroundColor = ->
 		rgb = $(this).css('background-color')

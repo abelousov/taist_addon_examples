@@ -1,6 +1,6 @@
 
 (function() {
-  var colorsStorage, docMap, getCurrentDocTypeOnStatesSettingsPage, rowsPainter, settingsUI, start, utils;
+  var colorsStorage, docTypesByHashes, rowsPainter, settingsUI, start, utils;
   utils = null;
   start = function(utilities, entryPoint) {
     utils = utilities;
@@ -8,19 +8,12 @@
       if (entryPoint === 'user') {
         return rowsPainter.watchForRowsToRedraw();
       } else {
-        return settingsUI.draw();
+        return settingsUI.waitToRedraw();
       }
     });
   };
-  getCurrentDocTypeOnStatesSettingsPage = function() {
-    if (location.hash === '#states') {
-      return $('.gwt-TreeItem-selected').text();
-    } else {
-      return null;
-    }
-  };
   colorsStorage = {
-    _userSettings: [],
+    _stateColors: {},
     init: function(callback) {
       var _this = this;
       return utils.wait.once((function() {
@@ -32,61 +25,26 @@
     _getCompanyName: function() {
       return $('.companyName>span').text();
     },
+    _colorsKey: 'stateColors',
     _loadColorData: function(userKeyCommonForCompany, callback) {
-      return utils.userData.get('', (function(error, value) {
-        this._userSettings = value;
+      var _this = this;
+      return utils.userData.get(this._colorsKey, (function(error, stateColors) {
+        _this._stateColors = stateColors != null ? stateColors : {};
         return callback();
       }), userKeyCommonForCompany);
     },
-    _getStoredStateColor: function(docType, state) {
-      var setting, _i, _len, _ref;
-      _ref = this._userSettings;
-      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-        setting = _ref[_i];
-        if (setting.key === this._getColorKey(docType, state)) return setting;
-      }
+    getStateColor: function(docType, state) {
+      var _ref;
+      return (_ref = this._stateColors[docType]) != null ? _ref[state] : void 0;
     },
-    _getColorKey: function(docType, state) {
-      return JSON.stringify({
-        currentDocType: docType,
-        status: state
-      });
+    _storeColorsOnServer: function(cb) {
+      return utils.userData.set(this._colorsKey, this._stateColors, cb, this._getCompanyName());
     },
-    getStateColorOnDocsPage: function(state) {
-      var cutHash, docHash, _i, _len, _ref;
-      cutHash = location.hash;
-      if (cutHash.indexOf('?') >= 0) {
-        cutHash = cutHash.substr(0, cutHash.indexOf('?'));
-      }
-      for (_i = 0, _len = docMap.length; _i < _len; _i++) {
-        docHash = docMap[_i];
-        if (docHash.hash === cutHash) {
-          return (_ref = this._getStoredStateColor(docHash.key, state)) != null ? _ref.value : void 0;
-        }
-      }
-    },
-    getStateColorFromStateSettingsPage: function(state) {
-      return getStoredStateColor(getCurrentDocTypeOnStatesSettingsPage(), state);
-    },
-    _setUserSetting: function(setting, cb) {
-      return utils.userData.set(setting.key, setting.value, cb, this._getCompanyName());
-    },
-    storeColor: function(state, value, callback) {
-      var currentColor, key;
-      key = this._getColorKey(getCurrentDocTypeOnStatesSettingsPage(), state);
-      currentColor = this.getStateColorFromStateSettingsPage(state);
-      if (currentColor != null) {
-        currentColor.value = value;
-      } else {
-        this._userSettings.push({
-          key: key,
-          value: value
-        });
-      }
-      return this._setUserSetting({
-        key: key,
-        value: value
-      }, callback);
+    storeColor: function(docType, state, color, callback) {
+      var docTypeColors, _base, _ref;
+      docTypeColors = (_ref = (_base = this._stateColors)[docType]) != null ? _ref : _base[docType] = {};
+      docTypeColors[state] = color;
+      return this._storeColorsOnServer(callback);
     }
   };
   rowsPainter = {
@@ -94,91 +52,99 @@
       var _this = this;
       return utils.wait.elementRender((function() {
         return _this._getDocsTable().find("tbody tr");
-      }), function(rows) {
-        return _this._redrawRows(rows);
+      }), function(row) {
+        return _this._redrawRow(row);
       });
     },
-    _redrawRows: function(rows) {
-      var row, stateColumnIndex, _i, _len, _results;
+    _redrawRow: function(row) {
+      var color, state, stateColumnIndex;
       stateColumnIndex = this._getStateColumnIndex(this._getDocsTable());
-      if (stateColumnIndex) {
-        _results = [];
-        for (_i = 0, _len = rows.length; _i < _len; _i++) {
-          row = rows[_i];
-          _results.push(this._drawRow($(row), stateColumnIndex));
-        }
-        return _results;
+      if (stateColumnIndex != null) {
+        state = this._getRowStateByIndex(row, stateColumnIndex);
+        color = colorsStorage.getStateColor(this.getCurrentDocType(), state);
+        if (color != null) return this._colorRow(row, color);
       }
     },
-    _drawRow: function(jqRow, stateColumnIndex) {
-      var color, state;
-      state = $(jqRow.find('td')[stateColumnIndex]).find('[title]').text();
-      color = getStateColorOnDocsPage(state);
-      if (color != null) {
-        return jqRow.children().attr('style', 'background:' + color + '!important');
+    _getRowStateByIndex: function(row, index) {
+      return $(row.find('td')[index]).find('[title]').text();
+    },
+    _colorRow: function(row, color) {
+      return row.children().attr('style', 'background:' + color + '!important');
+    },
+    getCurrentDocType: function() {
+      var hashContents;
+      hashContents = location.hash.substring(1);
+      if (hashContents.indexOf('?') >= 0) {
+        hashContents = hashContents.substr(0, hashContents.indexOf('?'));
       }
+      return docTypesByHashes[hashContents];
     },
     _getDocsTable: function() {
       return $('table.b-document-table');
     },
     _getStateColumnIndex: function(docsTable) {
-      var column, i, _len, _ref;
-      _ref = docsTable.find('thead').find('tr[class!="floating-header"]').find('th');
-      for (i = 0, _len = _ref.length; i < _len; i++) {
-        column = _ref[i];
+      var column, columnNames, i, _len;
+      columnNames = docsTable.find('thead').find('tr[class!="floating-header"]').find('th');
+      for (i = 0, _len = columnNames.length; i < _len; i++) {
+        column = columnNames[i];
         if ($(column).find('[title="Статус"]').length > 0) return i;
       }
       return null;
     }
   };
   settingsUI = {
-    draw: function() {
+    waitToRedraw: function() {
       var _this = this;
       this._waitDrawButton(function(saveButton) {
         return saveButton.click(function() {
-          _this._saveCurrentStatesColors();
-          return _this._drawColorPickers();
+          return _this._redrawColorPickers();
         });
       });
-      return this._onCurrentDocTypeChanged(function() {
+      return this._onCurrentDocTypeChange(function() {
         return _this._drawColorPickers();
-      });
-    },
-    _onCurrentDocTypeChanged: function(callback) {
-      var currentDocType, docTypeOnStatesPageChanged;
-      currentDocType = '<No current doc type>';
-      docTypeOnStatesPageChanged = function() {
-        var newDocType;
-        newDocType = getCurrentDocTypeOnStatesSettingsPage();
-        return (newDocType != null) && newDocType !== currentDocType;
-      };
-      return utils.wait.repeat(docTypeOnStatesPageChanged, function() {
-        currentDocType = getCurrentDocTypeOnStatesSettingsPage();
-        return callback();
       });
     },
     _waitDrawButton: function(callback) {
       return utils.wait.elementRender(this._saveButtonSelector, callback);
     },
-    _saveButtonSelector: '.b-popup-button-green',
-    _saveCurrentStatesColors: function() {
-      var inputObj, jqInput, state, _i, _len, _ref, _results;
-      _ref = this._getStateInputs();
-      _results = [];
-      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-        inputObj = _ref[_i];
-        jqInput = $(inputObj);
-        state = this._getStateFromInput(jqInput);
-        if (state.length > 0) {
-          _results.push(colorsStorage.storeColor(state, jqInput.getHexBackgroundColor(), function() {}));
-        } else {
-          _results.push(void 0);
-        }
-      }
-      return _results;
+    _onCurrentDocTypeChange: function(callback) {
+      var _this = this;
+      return utils.wait.repeat((function() {
+        return _this._checkIfDocTypeChanged();
+      }), callback);
     },
+    _checkIfDocTypeChanged: function() {
+      var newDocType;
+      newDocType = this._getCurrentDocType();
+      if ((newDocType != null) && newDocType !== this._currentDocType) {
+        this._currentDocType = newDocType;
+        return true;
+      } else {
+        return false;
+      }
+    },
+    _getCurrentDocType: function() {
+      if (location.hash === '#states') {
+        return $('.gwt-TreeItem-selected').text();
+      } else {
+        return null;
+      }
+    },
+    _currentDocType: null,
+    _saveButtonSelector: '.b-popup-button-green',
     _getStateInputs: function() {
       return $('input.gwt-TextBox[size="40"]');
+    },
+    _redrawColorPickers: function() {
+      var _this = this;
+      return utils.wait.once((function() {
+        return _this._colorPickersRemoved();
+      }), (function() {
+        return _this._drawColorPickers();
+      }));
+    },
+    _colorPickersRemoved: function() {
+      return $('.taistColorPicker').length === 0;
     },
     _getStateFromInput: function(input) {
       return input.val();
@@ -198,24 +164,34 @@
       return this._addColorPicker(jqStateInput);
     },
     _updateStateInputWithStoredColor: function(input) {
-      var storedColor, _ref, _ref2;
-      storedColor = colorsStorage.getStateColorFromStateSettingsPage(this._getStateFromInput(input));
-      return this._setInputColor(input, (_ref = (_ref2 = storedColor) != null ? _ref2.value : void 0) != null ? _ref : 'white');
+      var storedColor;
+      storedColor = colorsStorage.getStateColor(this._getCurrentDocType(), this._getStateFromInput(input));
+      return this._setInputColor(input, storedColor != null ? storedColor : 'white');
     },
     _setInputColor: function(input, color) {
       return input.css({
         background: color
       });
     },
+    _changeStateColor: function(input, newColor) {
+      var _this = this;
+      return colorsStorage.storeColor(this._getCurrentDocType(), this._getStateFromInput(input), newColor, function() {
+        return _this._updateStateInputWithStoredColor(input);
+      });
+    },
     _addColorPicker: function(input) {
-      var picker, self;
-      picker = $('<td></td>');
-      input.parent().after(picker);
-      self = this;
+      var colorPickCallback, oldPickerCell, picker,
+        _this = this;
+      oldPickerCell = input.parent().next();
+      oldPickerCell.hide();
+      picker = $('<td class="taistColorPicker"></td>');
+      oldPickerCell.after(picker);
+      colorPickCallback = function(hexColor) {
+        console.log("color picked: " + hexColor);
+        return _this._changeStateColor(input, '#' + hexColor);
+      };
       return picker.colourPicker({
-        colorPickCallback: function(hexColor) {
-          return self._setInputColor(input, '#' + hexColor);
-        }
+        colorPickCallback: colorPickCallback
       });
     }
   };
@@ -241,7 +217,7 @@
       speed: 500,
       openTxt: 'Open colour picker',
       inputId: 0,
-      colorPickCallback: function(hex, inputId) {}
+      colorPickCallback: function() {}
     }, conf);
     colors = ['99', 'CC', 'FF'];
     hexInvert = function(hex) {
@@ -303,75 +279,30 @@
       });
     });
   };
-  docMap = [
-    {
-      key: "Заказ поставщику",
-      hash: "#purchaseorder"
-    }, {
-      key: "Счет поставщика",
-      hash: "#invoicein"
-    }, {
-      key: "Приёмка",
-      hash: "#supply"
-    }, {
-      key: "Возврат поставщику",
-      hash: "#purchasereturn"
-    }, {
-      key: "Счёт-фактура полученный",
-      hash: "#facturein"
-    }, {
-      key: "Заказ покупателя",
-      hash: "#customerorder"
-    }, {
-      key: "Счет покупателю",
-      hash: "#invoiceout"
-    }, {
-      key: "Отгрузка",
-      hash: "#demand"
-    }, {
-      key: "Возврат покупателя",
-      hash: "#salesreturn"
-    }, {
-      key: "Счёт-фактура выданный",
-      hash: "#factureout"
-    }, {
-      key: "Прайс-лист",
-      hash: "#pricelist"
-    }, {
-      key: "Списание",
-      hash: "#loss"
-    }, {
-      key: "Оприходование",
-      hash: "#enter"
-    }, {
-      key: "Перемещение",
-      hash: "#move"
-    }, {
-      key: "Инвентаризация",
-      hash: "#inventory"
-    }, {
-      key: "Технологическая операция",
-      hash: "#processing"
-    }, {
-      key: "Заказ на производство",
-      hash: "#processingorder"
-    }, {
-      key: "Внутренний заказ",
-      hash: "#internalorder"
-    }, {
-      key: "Входящий платеж",
-      hash: "#paymentin"
-    }, {
-      key: "Приходный ордер",
-      hash: "#cashin"
-    }, {
-      key: "Исходящий платеж",
-      hash: "#paymentout"
-    }, {
-      key: "Расходный ордер",
-      hash: "#cashout"
-    }
-  ];
+  docTypesByHashes = {
+    purchaseorder: "Заказ поставщику",
+    invoicein: "Счет поставщика",
+    supply: "Приёмка",
+    purchasereturn: "Возврат поставщику",
+    facturein: "Счёт-фактура полученный",
+    customerorder: "Заказ покупателя",
+    invoiceout: "Счет покупателю",
+    demand: "Отгрузка",
+    salesreturn: "Возврат покупателя",
+    factureout: "Счёт-фактура выданный",
+    pricelist: "Прайс-лист",
+    loss: "Списание",
+    enter: "Оприходование",
+    move: "Перемещение",
+    inventory: "Инвентаризация",
+    processing: "Технологическая операция",
+    processingorder: "Заказ на производство",
+    internalorder: "Внутренний заказ",
+    paymentin: "Входящий платеж",
+    cashin: "Приходный ордер",
+    paymentout: "Исходящий платеж",
+    cashout: "Расходный ордер"
+  };
   return {
     start: start
   };
