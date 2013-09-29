@@ -196,20 +196,6 @@
       });
     }
   };
-  $.fn.getHexBackgroundColor = function() {
-    var hex, hex_rgb, rgb;
-    rgb = $(this).css('background-color');
-    if (!rgb) return '#FFFFFF';
-    hex_rgb = rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
-    if (hex_rgb) {
-      hex = function(x) {
-        return ("0" + parseInt(x).toString(16)).slice(-2);
-      };
-      return "#" + hex(hex_rgb[1]) + hex(hex_rgb[2]) + hex(hex_rgb[3]);
-    } else {
-      return rgb;
-    }
-  };
   jQuery.fn.colourPicker = function(conf) {
     var colors, colourPicker, config, hexInvert;
     config = jQuery.extend({

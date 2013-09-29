@@ -135,19 +135,6 @@
 
 			picker.colourPicker {colorPickCallback}
 
-	$.fn.getHexBackgroundColor = ->
-		rgb = $(this).css('background-color')
-		if not rgb
-			return '#FFFFFF'
-
-		hex_rgb = rgb.match /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/
-		if hex_rgb
-			hex = (x) -> ("0" + parseInt(x).toString(16)).slice -2
-			return "#" + hex(hex_rgb[1]) + hex(hex_rgb[2]) + hex(hex_rgb[3])
-		else
-			return rgb
-
-
 	jQuery.fn.colourPicker = (conf) ->
 		config = jQuery.extend {
 		id: 'jquery-colour-picker',
