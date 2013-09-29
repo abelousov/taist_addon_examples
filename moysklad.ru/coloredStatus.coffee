@@ -88,7 +88,8 @@
 			else
 				false
 
-		_getCurrentDocType: -> if location.hash is '#states' then $('.gwt-TreeItem-selected').text() else null
+		_getCurrentDocType: ->
+			if location.hash is '#states' and (docTypeText = $('.gwt-TreeItem-selected').text()).length > 0 then docTypeText else null
 
 		_currentDocType: null
 

@@ -124,8 +124,9 @@
       }
     },
     _getCurrentDocType: function() {
-      if (location.hash === '#states') {
-        return $('.gwt-TreeItem-selected').text();
+      var docTypeText;
+      if (location.hash === '#states' && (docTypeText = $('.gwt-TreeItem-selected').text()).length > 0) {
+        return docTypeText;
       } else {
         return null;
       }
