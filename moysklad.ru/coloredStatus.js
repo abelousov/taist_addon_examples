@@ -17,28 +17,28 @@
     init: function(callback) {
       var _this = this;
       return utils.wait.once((function() {
-        return _this._getCompanyName().length > 0;
+        return _this._getCompanyIdForSharedSettings().length > 0;
       }), function() {
-        return _this._loadColorData(_this._getCompanyName(), callback);
+        return _this._loadColorData(_this._getCompanyIdForSharedSettings(), callback);
       });
     },
-    _getCompanyName: function() {
+    _getCompanyIdForSharedSettings: function() {
       return $('.companyName>span').text();
     },
     _colorsKey: 'stateColors',
-    _loadColorData: function(userKeyCommonForCompany, callback) {
+    _loadColorData: function(companyId, callback) {
       var _this = this;
       return utils.userData.get(this._colorsKey, (function(error, stateColors) {
         _this._stateColors = stateColors != null ? stateColors : {};
         return callback();
-      }), userKeyCommonForCompany);
+      }), companyId);
     },
     getStateColor: function(docType, state) {
       var _ref;
       return (_ref = this._stateColors[docType]) != null ? _ref[state] : void 0;
     },
     _storeColorsOnServer: function(cb) {
-      return utils.userData.set(this._colorsKey, this._stateColors, cb, this._getCompanyName());
+      return utils.userData.set(this._colorsKey, this._stateColors, cb, this._getCompanyIdForSharedSettings());
     },
     storeColor: function(docType, state, color, callback) {
       var docTypeColors, _base, _ref;
@@ -188,7 +188,6 @@
       picker = $('<td class="taistColorPicker"></td>');
       oldPickerCell.after(picker);
       colorPickCallback = function(hexColor) {
-        console.log("color picked: " + hexColor);
         return _this._changeStateColor(input, '#' + hexColor);
       };
       return picker.colourPicker({

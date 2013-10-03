@@ -12,23 +12,23 @@
 	colorsStorage =
 		_stateColors: {}
 		init: (callback) ->
-			utils.wait.once (=> @_getCompanyName().length > 0), =>
-				@_loadColorData @_getCompanyName(), callback
+			utils.wait.once (=> @_getCompanyIdForSharedSettings().length > 0), =>
+				@_loadColorData @_getCompanyIdForSharedSettings(), callback
 
-		_getCompanyName: -> $('.companyName>span').text()
+		_getCompanyIdForSharedSettings: -> $('.companyName>span').text()
 
 		_colorsKey: 'stateColors'
 
-		_loadColorData: (userKeyCommonForCompany, callback) ->
+		_loadColorData: (companyId, callback) ->
 			utils.userData.get @_colorsKey, (
 				(error, stateColors) =>
 					@_stateColors = stateColors ? {}
 					callback()
-			), userKeyCommonForCompany
+			), companyId
 
 		getStateColor: (docType, state) -> @_stateColors[docType]?[state]
 
-		_storeColorsOnServer: (cb) -> utils.userData.set @_colorsKey, @_stateColors, cb, @_getCompanyName()
+		_storeColorsOnServer: (cb) -> utils.userData.set @_colorsKey, @_stateColors, cb, @_getCompanyIdForSharedSettings()
 
 		storeColor: (docType, state, color, callback) ->
 			docTypeColors = @_stateColors[docType] ?= {}
@@ -129,9 +129,7 @@
 			picker = $ '<td class="taistColorPicker"></td>'
 			oldPickerCell.after picker
 
-			colorPickCallback = (hexColor) =>
-				console.log "color picked: #{hexColor}"
-				@_changeStateColor input, '#' + hexColor
+			colorPickCallback = (hexColor) => @_changeStateColor input, '#' + hexColor
 
 			picker.colourPicker {colorPickCallback}
 
