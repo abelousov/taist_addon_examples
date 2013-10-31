@@ -3,44 +3,40 @@
 	start = (utilities) ->
 		utils = utilities
 
-		initStates()
-
 		wrikeUtils.onTaskViewRender render
-		renderFilterPanel()
+
+#		renderFilterPanel()
 
 	render = (task, taskView) ->
 		prepareStateButtons taskView
-		ApproveState.applyCurrentState task
-
-	initStates = ->
-		new ApproveState("toApprove", "To approve", "To approve", "[ToApprove] ", ["declined", "approved"], "responsible", null)
-		new ApproveState("declined", "Decline", "Declined", "[Declined] ", ["toApprove"], "author", null)
-		new ApproveState("approved", "Approve", "Approved", "[Approved] ", [], "responsible", "1")
-		ApproveState.initialNextStateIds = "toApprove"
+		taskView.stateMachine.applyCurrentState task
 
 	prepareStateButtons = (taskView) ->
-		if not taskView.taistButtonsPrepared?
-			prevElement = $ 'td.info-importance'
-			for state in ApproveState.allStates
+		if not taskView.stateMachine?
+			stateMachine = taskView.stateMachine = new StateMachine taskView
+
+			prevElement = $ '.wspace-task-importance-button'
+
+			for state in stateMachine.allStates
 				do (state) ->
-					newButtonContainer = $ """<td class="approval-button-#{state.id}"></td>"""
+					buttonClass = "approval-button-#{state.id}"
+					newButtonContainer = $ """<div class="#{buttonClass}"></div>"""
 					prevElement.after newButtonContainer
 					prevElement = newButtonContainer
 
 					button = new Ext.Button
-						injectTo: "td.approval-button-#{state.id}"
+						renderTo: newButtonContainer[0]
 						text: state.buttonCaption
-						handler: -> state.applyTo taskView
+						handler: ->
+							task = taskView.record
+
+							utils.log "updating task: ", task
+
+							stateMachine.applyState state, task, true
+
 						style: "float: left;margin-left: 15px;"
 
 					state.button = button
-					taskView.add button
-					utils.log "button added; state = #{state.id},", state
-
-			taskView.prepareComponents()
-
-			utils.log "all states after buttons prepared: ", ApproveState.allStates
-			taskView.taistButtonsPrepared = true
 
 	renderFilterPanel = ->
 		filterPanel = new WrikeFilterPanel 'Approval'
@@ -49,51 +45,56 @@
 			filterPanel.addCheckbox filterCheckbox
 		filterPanel.waitToRender()
 
-	class ApproveState
-		@allStates: []
-		@initialNextStateIds: null
-		@applyCurrentState: (task) ->
-			nextStateIds = null
+	class StateMachine
+		allStates: []
+		_initialNextStateIds: "toApprove"
+		_taskView: null
+
+		constructor: (@_taskView)->
+			@allStates.push new ApproveState("toApprove", "To approve", "To approve", "[ToApprove] ", ["declined", "approved"], "responsible", null)
+			@allStates.push new ApproveState("declined", "Decline", "Declined", "[Declined] ", ["toApprove"], "author", null)
+			@allStates.push new ApproveState("approved", "Approve", "Approved", "[Approved] ", [], "responsible", "1")
+
+		applyCurrentState: (task) ->
+			currentState = null
 			for state in @allStates
 				if state.isUsedBy task
-					nextStateIds = state.nextStateIds
+					currentState = state
 
-			nextStateIds ?= @initialNextStateIds
+			@applyState currentState, task, false
 
-			@renderNextStateButtons nextStateIds, task
-
-		@renderNextStateButtons: (nextStateIds, task) ->
-			utils.log "all states before rendering: ", @allStates
+		applyState: (currentState, task, needUpdate) ->
+			if currentState? and needUpdate
+				@_updateTaskWithState currentState, task
+			nextStateIds = currentState?.nextStateIds ? @_initialNextStateIds
 			for state in @allStates
 				visible = nextStateIds.indexOf(state.id) >= 0 && (state.canBeSetOn task)
 				state.button.setVisible visible
 
+		_updateTaskWithState: (currentState, task) ->
+			for state in @allStates
+				state.removeFromTask task
 
+			currentState.addToTask task
+
+			task.save @_taskView.callback
+
+
+	class ApproveState
 		constructor: (@id, @buttonCaption, @filterName, @tagText, @nextStateIds, @availableFor, @newTaskState) ->
-			ApproveState.allStates.push @
-			utils.log "new state created: ", @, "all states: ", ApproveState.allStates
+
 		isUsedBy: (task) -> (task.get "title").indexOf(@tagText) >= 0
 
 		canBeSetOn: (task) ->
 			return (@availableFor == "responsible" && wrikeUtils.currentUserIsResponsibleForTask task) || (@availableFor == "author" && wrikeUtils.currentUserIsAuthor task)
 
-		applyTo: (taskView) ->
-			task = taskView["record"]
-			cleanedTitle = task.get "title"
-			for state in ApproveState.allStates
-				cleanedTitle = cleanedTitle.replace state.tagText, ''
-
-			task.set "title", @tagText + cleanedTitle
-
+		addToTask: (task) ->
+			task.set 'title', @tagText + (task.get 'title')
 			if @newTaskState?
-				task.set("state", @newTaskState)
+				task.set "state", @newTaskState
 
-			task.save(taskView.callback)
 
-			@render task
-
-		render: (task) ->
-			ApproveState.renderNextStateButtons @nextStateIds, task
+		removeFromTask: (task) -> task.set 'title', ((task.get 'title').replace @tagText, '')
 
 	class WrikeFilterCheckbox
 		constructor: (@caption, @tagText) ->
@@ -170,18 +171,20 @@
 
 		getTask: (taskId, callback) -> Wrike.Task.get taskId, (task) -> callback task
 
-		getCurrentTaskView: -> window.Ext.ComponentMgr.get ($('.taskView').attr 'id')
+		getCurrentTaskView: -> window.Ext.ComponentMgr.get ($('.w3-task-view').attr 'id')
 
 		getCurrentTask: -> @getCurrentTaskView()?["record"]
 
 		onTaskViewRender: (callback) ->
-			cb = (taskView) -> callback taskView["record"], taskView
-			taskViewClass = window.w2.folders.info.task.View
-			utils.aspect.before taskViewClass, "showRecord", ->	cb @
+			callbackClosure = =>
+				callback @getCurrentTask(), @getCurrentTaskView()
 
-			currentTaskView = @getCurrentTaskView()
-			if currentTaskView?
-				cb currentTaskView
+			liveEditorClass = w2.task.widget.liveeditor.View
+
+			utils.aspect.after liveEditorClass, "onShowRecord", callbackClosure
+
+			if @getCurrentTaskView()
+				callbackClosure()
 
 		onTaskChange: (callback) -> utils.aspect.after Wrike.Task, "getChanges", (-> callback @)
 

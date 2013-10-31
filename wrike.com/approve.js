@@ -1,52 +1,45 @@
 
 (function() {
-  var ApproveState, WrikeFilterCheckbox, WrikeFilterPanel, initStates, prepareStateButtons, render, renderFilterPanel, start, utils, wrikeUtils;
+  var ApproveState, StateMachine, WrikeFilterCheckbox, WrikeFilterPanel, prepareStateButtons, render, renderFilterPanel, start, utils, wrikeUtils;
   utils = null;
   start = function(utilities) {
     utils = utilities;
-    initStates();
-    wrikeUtils.onTaskViewRender(render);
-    return renderFilterPanel();
+    return wrikeUtils.onTaskViewRender(render);
   };
   render = function(task, taskView) {
     prepareStateButtons(taskView);
-    return ApproveState.applyCurrentState(task);
-  };
-  initStates = function() {
-    new ApproveState("toApprove", "To approve", "To approve", "[ToApprove] ", ["declined", "approved"], "responsible", null);
-    new ApproveState("declined", "Decline", "Declined", "[Declined] ", ["toApprove"], "author", null);
-    new ApproveState("approved", "Approve", "Approved", "[Approved] ", [], "responsible", "1");
-    return ApproveState.initialNextStateIds = "toApprove";
+    return taskView.stateMachine.applyCurrentState(task);
   };
   prepareStateButtons = function(taskView) {
-    var prevElement, state, _fn, _i, _len, _ref;
-    if (!(taskView.taistButtonsPrepared != null)) {
-      prevElement = $('td.info-importance');
-      _ref = ApproveState.allStates;
-      _fn = function(state) {
-        var button, newButtonContainer;
-        newButtonContainer = $("<td class=\"approval-button-" + state.id + "\"></td>");
-        prevElement.after(newButtonContainer);
-        prevElement = newButtonContainer;
-        button = new Ext.Button({
-          injectTo: "td.approval-button-" + state.id,
-          text: state.buttonCaption,
-          handler: function() {
-            return state.applyTo(taskView);
-          },
-          style: "float: left;margin-left: 15px;"
-        });
-        state.button = button;
-        taskView.add(button);
-        return utils.log("button added; state = " + state.id + ",", state);
-      };
+    var prevElement, state, stateMachine, _i, _len, _ref, _results;
+    if (!(taskView.stateMachine != null)) {
+      stateMachine = taskView.stateMachine = new StateMachine(taskView);
+      prevElement = $('.wspace-task-importance-button');
+      _ref = stateMachine.allStates;
+      _results = [];
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
         state = _ref[_i];
-        _fn(state);
+        _results.push((function(state) {
+          var button, buttonClass, newButtonContainer;
+          buttonClass = "approval-button-" + state.id;
+          newButtonContainer = $("<div class=\"" + buttonClass + "\"></div>");
+          prevElement.after(newButtonContainer);
+          prevElement = newButtonContainer;
+          button = new Ext.Button({
+            renderTo: newButtonContainer[0],
+            text: state.buttonCaption,
+            handler: function() {
+              var task;
+              task = taskView.record;
+              utils.log("updating task: ", task);
+              return stateMachine.applyState(state, task, true);
+            },
+            style: "float: left;margin-left: 15px;"
+          });
+          return state.button = button;
+        })(state));
       }
-      taskView.prepareComponents();
-      utils.log("all states after buttons prepared: ", ApproveState.allStates);
-      return taskView.taistButtonsPrepared = true;
+      return _results;
     }
   };
   renderFilterPanel = function() {
@@ -60,36 +53,63 @@
     }
     return filterPanel.waitToRender();
   };
-  ApproveState = (function() {
+  StateMachine = (function() {
 
-    ApproveState.allStates = [];
+    StateMachine.prototype.allStates = [];
 
-    ApproveState.initialNextStateIds = null;
+    StateMachine.prototype._initialNextStateIds = "toApprove";
 
-    ApproveState.applyCurrentState = function(task) {
-      var nextStateIds, state, _i, _len, _ref;
-      nextStateIds = null;
+    StateMachine.prototype._taskView = null;
+
+    function StateMachine(_taskView) {
+      this._taskView = _taskView;
+      this.allStates.push(new ApproveState("toApprove", "To approve", "To approve", "[ToApprove] ", ["declined", "approved"], "responsible", null));
+      this.allStates.push(new ApproveState("declined", "Decline", "Declined", "[Declined] ", ["toApprove"], "author", null));
+      this.allStates.push(new ApproveState("approved", "Approve", "Approved", "[Approved] ", [], "responsible", "1"));
+    }
+
+    StateMachine.prototype.applyCurrentState = function(task) {
+      var currentState, state, _i, _len, _ref;
+      currentState = null;
       _ref = this.allStates;
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
         state = _ref[_i];
-        if (state.isUsedBy(task)) nextStateIds = state.nextStateIds;
+        if (state.isUsedBy(task)) currentState = state;
       }
-      if (nextStateIds == null) nextStateIds = this.initialNextStateIds;
-      return this.renderNextStateButtons(nextStateIds, task);
+      return this.applyState(currentState, task, false);
     };
 
-    ApproveState.renderNextStateButtons = function(nextStateIds, task) {
-      var state, visible, _i, _len, _ref, _results;
-      utils.log("all states before rendering: ", this.allStates);
-      _ref = this.allStates;
+    StateMachine.prototype.applyState = function(currentState, task, needUpdate) {
+      var nextStateIds, state, visible, _i, _len, _ref, _ref2, _results;
+      if ((currentState != null) && needUpdate) {
+        this._updateTaskWithState(currentState, task);
+      }
+      nextStateIds = (_ref = currentState != null ? currentState.nextStateIds : void 0) != null ? _ref : this._initialNextStateIds;
+      _ref2 = this.allStates;
       _results = [];
-      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-        state = _ref[_i];
+      for (_i = 0, _len = _ref2.length; _i < _len; _i++) {
+        state = _ref2[_i];
         visible = nextStateIds.indexOf(state.id) >= 0 && (state.canBeSetOn(task));
         _results.push(state.button.setVisible(visible));
       }
       return _results;
     };
+
+    StateMachine.prototype._updateTaskWithState = function(currentState, task) {
+      var state, _i, _len, _ref;
+      _ref = this.allStates;
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        state = _ref[_i];
+        state.removeFromTask(task);
+      }
+      currentState.addToTask(task);
+      return task.save(this._taskView.callback);
+    };
+
+    return StateMachine;
+
+  })();
+  ApproveState = (function() {
 
     function ApproveState(id, buttonCaption, filterName, tagText, nextStateIds, availableFor, newTaskState) {
       this.id = id;
@@ -99,8 +119,6 @@
       this.nextStateIds = nextStateIds;
       this.availableFor = availableFor;
       this.newTaskState = newTaskState;
-      ApproveState.allStates.push(this);
-      utils.log("new state created: ", this, "all states: ", ApproveState.allStates);
     }
 
     ApproveState.prototype.isUsedBy = function(task) {
@@ -111,23 +129,13 @@
       return (this.availableFor === "responsible" && wrikeUtils.currentUserIsResponsibleForTask(task)) || (this.availableFor === "author" && wrikeUtils.currentUserIsAuthor(task));
     };
 
-    ApproveState.prototype.applyTo = function(taskView) {
-      var cleanedTitle, state, task, _i, _len, _ref;
-      task = taskView["record"];
-      cleanedTitle = task.get("title");
-      _ref = ApproveState.allStates;
-      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-        state = _ref[_i];
-        cleanedTitle = cleanedTitle.replace(state.tagText, '');
-      }
-      task.set("title", this.tagText + cleanedTitle);
-      if (this.newTaskState != null) task.set("state", this.newTaskState);
-      task.save(taskView.callback);
-      return this.render(task);
+    ApproveState.prototype.addToTask = function(task) {
+      task.set('title', this.tagText + (task.get('title')));
+      if (this.newTaskState != null) return task.set("state", this.newTaskState);
     };
 
-    ApproveState.prototype.render = function(task) {
-      return ApproveState.renderNextStateButtons(this.nextStateIds, task);
+    ApproveState.prototype.removeFromTask = function(task) {
+      return task.set('title', (task.get('title')).replace(this.tagText, ''));
     };
 
     return ApproveState;
@@ -244,23 +252,21 @@
       });
     },
     getCurrentTaskView: function() {
-      return window.Ext.ComponentMgr.get($('.taskView').attr('id'));
+      return window.Ext.ComponentMgr.get($('.w3-task-view').attr('id'));
     },
     getCurrentTask: function() {
       var _ref;
       return (_ref = this.getCurrentTaskView()) != null ? _ref["record"] : void 0;
     },
     onTaskViewRender: function(callback) {
-      var cb, currentTaskView, taskViewClass;
-      cb = function(taskView) {
-        return callback(taskView["record"], taskView);
+      var callbackClosure, liveEditorClass,
+        _this = this;
+      callbackClosure = function() {
+        return callback(_this.getCurrentTask(), _this.getCurrentTaskView());
       };
-      taskViewClass = window.w2.folders.info.task.View;
-      utils.aspect.before(taskViewClass, "showRecord", function() {
-        return cb(this);
-      });
-      currentTaskView = this.getCurrentTaskView();
-      if (currentTaskView != null) return cb(currentTaskView);
+      liveEditorClass = w2.task.widget.liveeditor.View;
+      utils.aspect.after(liveEditorClass, "onShowRecord", callbackClosure);
+      if (this.getCurrentTaskView()) return callbackClosure();
     },
     onTaskChange: function(callback) {
       return utils.aspect.after(Wrike.Task, "getChanges", (function() {
