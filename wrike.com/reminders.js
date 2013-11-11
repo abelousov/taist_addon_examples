@@ -497,11 +497,6 @@
     currentUserIsResponsibleForTask: function(task) {
       return task.data["responsibleList"].indexOf(this.getCurrentUserId()) >= 0;
     },
-    getTask: function(taskId, callback) {
-      return Wrike.Task.get(taskId, function(task) {
-        return callback(task);
-      });
-    },
     getCurrentTaskView: function() {
       return window.Ext.ComponentMgr.get($('.taskView').attr('id'));
     },

@@ -122,8 +122,6 @@
 
 		currentUserIsResponsibleForTask: (task) -> task.data["responsibleList"].indexOf(@getCurrentUserId()) >= 0
 
-		getTask: (taskId, callback) -> Wrike.Task.get taskId, (task) -> callback task
-
 		getCurrentTaskView: -> window.Ext.ComponentMgr.get ($('.taskView').attr 'id')
 
 		getCurrentTask: -> @getCurrentTaskView()?["record"]
