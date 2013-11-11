@@ -1,6 +1,11 @@
 ->
 	utils = null
+
+	stateMachine = null
 	start = (utilities) ->
+
+		window.getCurrentView = -> window.Ext.ComponentMgr.get($('.w3-task-view').attr('id'));
+
 		utils = utilities
 
 		wrikeUtils.onTaskViewRender render
@@ -9,11 +14,12 @@
 
 	render = (task, taskView) ->
 		prepareStateButtons taskView
-		taskView.stateMachine.applyCurrentState task
+		stateMachine.applyCurrentState task
 
 	prepareStateButtons = (taskView) ->
-		if not taskView.stateMachine?
-			stateMachine = taskView.stateMachine = new StateMachine taskView
+		if not stateMachine?
+			utils.log 'rendering buttons...'
+			stateMachine = new StateMachine taskView
 
 			prevElement = $ '.wspace-task-importance-button'
 
@@ -32,7 +38,7 @@
 
 							utils.log "updating task: ", task
 
-							stateMachine.applyState state, task, true
+							stateMachine.changeState state, task
 
 						style: "float: left;margin-left: 15px;"
 
@@ -50,7 +56,7 @@
 		_initialNextStateIds: "toApprove"
 		_taskView: null
 
-		constructor: (@_taskView)->
+		constructor: (@_taskView) ->
 			@allStates.push new ApproveState("toApprove", "To approve", "To approve", "[ToApprove] ", ["declined", "approved"], "responsible", null)
 			@allStates.push new ApproveState("declined", "Decline", "Declined", "[Declined] ", ["toApprove"], "author", null)
 			@allStates.push new ApproveState("approved", "Approve", "Approved", "[Approved] ", [], "responsible", "1")
@@ -61,12 +67,17 @@
 				if state.isUsedBy task
 					currentState = state
 
-			@applyState currentState, task, false
+			utils.log "applying states: task: ", task, "current state: ", currentState
 
-		applyState: (currentState, task, needUpdate) ->
-			if currentState? and needUpdate
-				@_updateTaskWithState currentState, task
-			nextStateIds = currentState?.nextStateIds ? @_initialNextStateIds
+			@_applyState currentState, task, false
+
+		changeState: (state, task) -> @_applyState state, task, true
+
+		_applyState: (newState, task, needUpdate) ->
+			if needUpdate
+				@_updateTaskWithState newState, task
+
+			nextStateIds = newState?.nextStateIds ? @_initialNextStateIds
 			for state in @allStates
 				visible = nextStateIds.indexOf(state.id) >= 0 && (state.canBeSetOn task)
 				state.button.setVisible visible
@@ -81,12 +92,19 @@
 
 
 	class ApproveState
+		nextStateIds: null
+		availableFor: null
 		constructor: (@id, @buttonCaption, @filterName, @tagText, @nextStateIds, @availableFor, @newTaskState) ->
 
 		isUsedBy: (task) -> (task.get "title").indexOf(@tagText) >= 0
 
 		canBeSetOn: (task) ->
-			return (@availableFor == "responsible" && wrikeUtils.currentUserIsResponsibleForTask task) || (@availableFor == "author" && wrikeUtils.currentUserIsAuthor task)
+			if @availableFor is "responsible"
+				wrikeUtils.currentUserIsResponsibleForTask task
+			else if @availableFor is "author"
+				wrikeUtils.currentUserIsAuthor task
+			else
+				null
 
 		addToTask: (task) ->
 			task.set 'title', @tagText + (task.get 'title')
@@ -169,22 +187,37 @@
 
 		currentUserIsAuthor: (task) -> (task.get 'author') is @getCurrentUserId()
 
-		getTask: (taskId, callback) -> Wrike.Task.get taskId, (task) -> callback task
-
 		getCurrentTaskView: -> window.Ext.ComponentMgr.get ($('.w3-task-view').attr 'id')
 
 		getCurrentTask: -> @getCurrentTaskView()?["record"]
 
 		onTaskViewRender: (callback) ->
-			callbackClosure = =>
-				callback @getCurrentTask(), @getCurrentTaskView()
 
-			liveEditorClass = w2.task.widget.liveeditor.View
+			listenerName = "beforesetrecord"
 
-			utils.aspect.after liveEditorClass, "onShowRecord", callbackClosure
+			taskViewListeners = w2.task.View.prototype.xlisteners
 
-			if @getCurrentTaskView()
-				callbackClosure()
+			enhanceBeforesetrecord = (view, task) =>
+				utils.log 'beforesetrecord called: ', task, view
+				if task?
+					task.load (loadedTask) ->
+						callback loadedTask, view
+
+			utils.aspect.after taskViewListeners, listenerName, enhanceBeforesetrecord
+
+			[currentTask, currentTaskView] = [@getCurrentTask(), @getCurrentTaskView()]
+
+			if currentTask? and currentTaskView?
+				utils.log 'current view found'
+				window.curView = currentTaskView
+
+				#manually replace already initialized listener in existing view
+				#better would be just to override it in prototype before any view is created - more early addon launch is required
+				enhancedListener = taskViewListeners[listenerName]
+				currentViewListeners = currentTaskView.events[listenerName].listeners[0]
+				currentViewListeners.fn = currentViewListeners.fireFn = enhancedListener
+
+				callback currentTask, currentTaskView
 
 		onTaskChange: (callback) -> utils.aspect.after Wrike.Task, "getChanges", (-> callback @)
 

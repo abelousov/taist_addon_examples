@@ -1,19 +1,24 @@
 
 (function() {
-  var ApproveState, StateMachine, WrikeFilterCheckbox, WrikeFilterPanel, prepareStateButtons, render, renderFilterPanel, start, utils, wrikeUtils;
+  var ApproveState, StateMachine, WrikeFilterCheckbox, WrikeFilterPanel, prepareStateButtons, render, renderFilterPanel, start, stateMachine, utils, wrikeUtils;
   utils = null;
+  stateMachine = null;
   start = function(utilities) {
+    window.getCurrentView = function() {
+      return window.Ext.ComponentMgr.get($('.w3-task-view').attr('id'));
+    };
     utils = utilities;
     return wrikeUtils.onTaskViewRender(render);
   };
   render = function(task, taskView) {
     prepareStateButtons(taskView);
-    return taskView.stateMachine.applyCurrentState(task);
+    return stateMachine.applyCurrentState(task);
   };
   prepareStateButtons = function(taskView) {
-    var prevElement, state, stateMachine, _i, _len, _ref, _results;
-    if (!(taskView.stateMachine != null)) {
-      stateMachine = taskView.stateMachine = new StateMachine(taskView);
+    var prevElement, state, _i, _len, _ref, _results;
+    if (!(stateMachine != null)) {
+      utils.log('rendering buttons...');
+      stateMachine = new StateMachine(taskView);
       prevElement = $('.wspace-task-importance-button');
       _ref = stateMachine.allStates;
       _results = [];
@@ -32,7 +37,7 @@
               var task;
               task = taskView.record;
               utils.log("updating task: ", task);
-              return stateMachine.applyState(state, task, true);
+              return stateMachine.changeState(state, task);
             },
             style: "float: left;margin-left: 15px;"
           });
@@ -76,15 +81,18 @@
         state = _ref[_i];
         if (state.isUsedBy(task)) currentState = state;
       }
-      return this.applyState(currentState, task, false);
+      utils.log("applying states: task: ", task, "current state: ", currentState);
+      return this._applyState(currentState, task, false);
     };
 
-    StateMachine.prototype.applyState = function(currentState, task, needUpdate) {
+    StateMachine.prototype.changeState = function(state, task) {
+      return this._applyState(state, task, true);
+    };
+
+    StateMachine.prototype._applyState = function(newState, task, needUpdate) {
       var nextStateIds, state, visible, _i, _len, _ref, _ref2, _results;
-      if ((currentState != null) && needUpdate) {
-        this._updateTaskWithState(currentState, task);
-      }
-      nextStateIds = (_ref = currentState != null ? currentState.nextStateIds : void 0) != null ? _ref : this._initialNextStateIds;
+      if (needUpdate) this._updateTaskWithState(newState, task);
+      nextStateIds = (_ref = newState != null ? newState.nextStateIds : void 0) != null ? _ref : this._initialNextStateIds;
       _ref2 = this.allStates;
       _results = [];
       for (_i = 0, _len = _ref2.length; _i < _len; _i++) {
@@ -111,6 +119,10 @@
   })();
   ApproveState = (function() {
 
+    ApproveState.prototype.nextStateIds = null;
+
+    ApproveState.prototype.availableFor = null;
+
     function ApproveState(id, buttonCaption, filterName, tagText, nextStateIds, availableFor, newTaskState) {
       this.id = id;
       this.buttonCaption = buttonCaption;
@@ -126,7 +138,13 @@
     };
 
     ApproveState.prototype.canBeSetOn = function(task) {
-      return (this.availableFor === "responsible" && wrikeUtils.currentUserIsResponsibleForTask(task)) || (this.availableFor === "author" && wrikeUtils.currentUserIsAuthor(task));
+      if (this.availableFor === "responsible") {
+        return wrikeUtils.currentUserIsResponsibleForTask(task);
+      } else if (this.availableFor === "author") {
+        return wrikeUtils.currentUserIsAuthor(task);
+      } else {
+        return null;
+      }
     };
 
     ApproveState.prototype.addToTask = function(task) {
@@ -246,11 +264,6 @@
     currentUserIsAuthor: function(task) {
       return (task.get('author')) === this.getCurrentUserId();
     },
-    getTask: function(taskId, callback) {
-      return Wrike.Task.get(taskId, function(task) {
-        return callback(task);
-      });
-    },
     getCurrentTaskView: function() {
       return window.Ext.ComponentMgr.get($('.w3-task-view').attr('id'));
     },
@@ -259,14 +272,28 @@
       return (_ref = this.getCurrentTaskView()) != null ? _ref["record"] : void 0;
     },
     onTaskViewRender: function(callback) {
-      var callbackClosure, liveEditorClass,
+      var currentTask, currentTaskView, currentViewListeners, enhanceBeforesetrecord, enhancedListener, listenerName, taskViewListeners, _ref,
         _this = this;
-      callbackClosure = function() {
-        return callback(_this.getCurrentTask(), _this.getCurrentTaskView());
+      listenerName = "beforesetrecord";
+      taskViewListeners = w2.task.View.prototype.xlisteners;
+      enhanceBeforesetrecord = function(view, task) {
+        utils.log('beforesetrecord called: ', task, view);
+        if (task != null) {
+          return task.load(function(loadedTask) {
+            return callback(loadedTask, view);
+          });
+        }
       };
-      liveEditorClass = w2.task.widget.liveeditor.View;
-      utils.aspect.after(liveEditorClass, "onShowRecord", callbackClosure);
-      if (this.getCurrentTaskView()) return callbackClosure();
+      utils.aspect.after(taskViewListeners, listenerName, enhanceBeforesetrecord);
+      _ref = [this.getCurrentTask(), this.getCurrentTaskView()], currentTask = _ref[0], currentTaskView = _ref[1];
+      if ((currentTask != null) && (currentTaskView != null)) {
+        utils.log('current view found');
+        window.curView = currentTaskView;
+        enhancedListener = taskViewListeners[listenerName];
+        currentViewListeners = currentTaskView.events[listenerName].listeners[0];
+        currentViewListeners.fn = currentViewListeners.fireFn = enhancedListener;
+        return callback(currentTask, currentTaskView);
+      }
     },
     onTaskChange: function(callback) {
       return utils.aspect.after(Wrike.Task, "getChanges", (function() {
