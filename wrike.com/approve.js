@@ -1,51 +1,57 @@
 
 (function() {
-  var ApproveState, StateMachine, WrikeFilterCheckbox, WrikeFilterPanel, prepareStateButtons, render, renderFilterPanel, start, stateMachine, utils, wrikeUtils;
+  var ApproveState, StateMachine, WrikeFilterCheckbox, WrikeFilterPanel, addStateMachine, buttonsContainer, createButton, render, renderFilterPanel, start, utils, wrikeUtils;
   utils = null;
-  stateMachine = null;
+  buttonsContainer = null;
   start = function(utilities) {
-    window.getCurrentView = function() {
-      return window.Ext.ComponentMgr.get($('.w3-task-view').attr('id'));
-    };
     utils = utilities;
     return wrikeUtils.onTaskViewRender(render);
   };
-  render = function(task, taskView) {
-    prepareStateButtons(taskView);
-    return stateMachine.applyCurrentState(task);
-  };
-  prepareStateButtons = function(taskView) {
-    var prevElement, state, _i, _len, _ref, _results;
-    if (!(stateMachine != null)) {
-      utils.log('rendering buttons...');
-      stateMachine = new StateMachine(taskView);
-      prevElement = $('.wspace-task-importance-button');
-      _ref = stateMachine.allStates;
-      _results = [];
-      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-        state = _ref[_i];
-        _results.push((function(state) {
-          var button, buttonClass, newButtonContainer;
-          buttonClass = "approval-button-" + state.id;
-          newButtonContainer = $("<div class=\"" + buttonClass + "\"></div>");
-          prevElement.after(newButtonContainer);
-          prevElement = newButtonContainer;
-          button = new Ext.Button({
-            renderTo: newButtonContainer[0],
-            text: state.buttonCaption,
-            handler: function() {
-              var task;
-              task = taskView.record;
-              utils.log("updating task: ", task);
-              return stateMachine.changeState(state, task);
-            },
-            style: "float: left;margin-left: 15px;"
-          });
-          return state.button = button;
-        })(state));
-      }
-      return _results;
+  render = function(task) {
+    var stateMachine;
+    if (task != null) {
+      stateMachine = addStateMachine();
+      stateMachine.task = task;
+      return stateMachine.applyCurrentState();
     }
+  };
+  addStateMachine = function() {
+    var buttonsContainerClass, prevElement, state, stateMachine, _fn, _i, _len, _ref;
+    stateMachine = new StateMachine();
+    buttonsContainerClass = "taist-stateButtonsContainer";
+    buttonsContainer = $('.' + buttonsContainerClass);
+    if (buttonsContainer.length === 0) {
+      utils.log('buttons container doesnot exist, creating new one');
+      buttonsContainer = $('<div class="#{buttonsContainerClass}"></div>');
+      prevElement = $('.wspace-task-importance-button');
+      prevElement.after(buttonsContainer);
+      utils.log('inserted buttons container: ', prevElement, buttonsContainer, buttonsContainer.parent());
+    } else {
+      utils.log('emptying buttons container: ', buttonsContainer);
+      buttonsContainer.empty();
+      utils.log('emptying result: ', buttonsContainer);
+    }
+    _ref = stateMachine.allStates;
+    _fn = function(state) {
+      var button;
+      button = createButton(state, stateMachine);
+      buttonsContainer.append(button);
+      return state.button = button;
+    };
+    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      state = _ref[_i];
+      _fn(state);
+    }
+    return stateMachine;
+  };
+  createButton = function(state, stateMachine) {
+    var button;
+    button = $("<a class=\"wrike-button-base x-btn-noicon\" style=\"width: auto; float: left; margin-left: 15px;\">" + state.buttonCaption + "</a>");
+    button.click(function() {
+      stateMachine.changeState(state);
+      return false;
+    });
+    return button;
   };
   renderFilterPanel = function() {
     var filterCheckbox, filterPanel, state, _i, _len, _ref;
@@ -64,54 +70,52 @@
 
     StateMachine.prototype._initialNextStateIds = "toApprove";
 
-    StateMachine.prototype._taskView = null;
+    StateMachine.prototype.task = null;
 
-    function StateMachine(_taskView) {
-      this._taskView = _taskView;
+    function StateMachine() {
       this.allStates.push(new ApproveState("toApprove", "To approve", "To approve", "[ToApprove] ", ["declined", "approved"], "responsible", null));
       this.allStates.push(new ApproveState("declined", "Decline", "Declined", "[Declined] ", ["toApprove"], "author", null));
       this.allStates.push(new ApproveState("approved", "Approve", "Approved", "[Approved] ", [], "responsible", "1"));
     }
 
-    StateMachine.prototype.applyCurrentState = function(task) {
+    StateMachine.prototype.applyCurrentState = function() {
       var currentState, state, _i, _len, _ref;
       currentState = null;
       _ref = this.allStates;
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
         state = _ref[_i];
-        if (state.isUsedBy(task)) currentState = state;
+        if (state.isUsedBy(this.task)) currentState = state;
       }
-      utils.log("applying states: task: ", task, "current state: ", currentState);
-      return this._applyState(currentState, task, false);
+      return this._applyState(currentState, false);
     };
 
-    StateMachine.prototype.changeState = function(state, task) {
-      return this._applyState(state, task, true);
+    StateMachine.prototype.changeState = function(state) {
+      return this._applyState(state, true);
     };
 
-    StateMachine.prototype._applyState = function(newState, task, needUpdate) {
+    StateMachine.prototype._applyState = function(newState, needUpdate) {
       var nextStateIds, state, visible, _i, _len, _ref, _ref2, _results;
-      if (needUpdate) this._updateTaskWithState(newState, task);
+      if (needUpdate) this._updateTaskWithState(newState);
       nextStateIds = (_ref = newState != null ? newState.nextStateIds : void 0) != null ? _ref : this._initialNextStateIds;
       _ref2 = this.allStates;
       _results = [];
       for (_i = 0, _len = _ref2.length; _i < _len; _i++) {
         state = _ref2[_i];
-        visible = nextStateIds.indexOf(state.id) >= 0 && (state.canBeSetOn(task));
-        _results.push(state.button.setVisible(visible));
+        visible = nextStateIds.indexOf(state.id) >= 0 && (state.canBeSetOn(this.task));
+        _results.push(state.button.toggle(visible));
       }
       return _results;
     };
 
-    StateMachine.prototype._updateTaskWithState = function(currentState, task) {
+    StateMachine.prototype._updateTaskWithState = function(currentState) {
       var state, _i, _len, _ref;
       _ref = this.allStates;
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
         state = _ref[_i];
-        state.removeFromTask(task);
+        state.removeFromTask(this.task);
       }
-      currentState.addToTask(task);
-      return task.save(this._taskView.callback);
+      currentState.addToTask(this.task);
+      return this.task.save();
     };
 
     return StateMachine;
@@ -122,6 +126,8 @@
     ApproveState.prototype.nextStateIds = null;
 
     ApproveState.prototype.availableFor = null;
+
+    ApproveState.prototype.button = null;
 
     function ApproveState(id, buttonCaption, filterName, tagText, nextStateIds, availableFor, newTaskState) {
       this.id = id;
@@ -272,24 +278,23 @@
       return (_ref = this.getCurrentTaskView()) != null ? _ref["record"] : void 0;
     },
     onTaskViewRender: function(callback) {
-      var currentTask, currentTaskView, currentViewListeners, enhanceBeforesetrecord, enhancedListener, listenerName, taskViewListeners, _ref,
-        _this = this;
+      var currentTask, currentTaskView, currentViewListeners, enhancedListener, listenerName, listenersInPrototype, _ref;
       listenerName = "beforesetrecord";
-      taskViewListeners = w2.task.View.prototype.xlisteners;
-      enhanceBeforesetrecord = function(view, task) {
-        utils.log('beforesetrecord called: ', task, view);
+      listenersInPrototype = w2.task.View.prototype.xlisteners;
+      utils.aspect.after(listenersInPrototype, listenerName, function(view, task) {
         if (task != null) {
           return task.load(function(loadedTask) {
+            utils.log('set task: ', loadedTask.data.title);
             return callback(loadedTask, view);
           });
+        } else {
+          utils.log('unset task');
+          return callback(null, view);
         }
-      };
-      utils.aspect.after(taskViewListeners, listenerName, enhanceBeforesetrecord);
+      });
       _ref = [this.getCurrentTask(), this.getCurrentTaskView()], currentTask = _ref[0], currentTaskView = _ref[1];
       if ((currentTask != null) && (currentTaskView != null)) {
-        utils.log('current view found');
-        window.curView = currentTaskView;
-        enhancedListener = taskViewListeners[listenerName];
+        enhancedListener = listenersInPrototype[listenerName];
         currentViewListeners = currentTaskView.events[listenerName].listeners[0];
         currentViewListeners.fn = currentViewListeners.fireFn = enhancedListener;
         return callback(currentTask, currentTaskView);

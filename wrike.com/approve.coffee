@@ -1,48 +1,49 @@
 ->
 	utils = null
+	buttonsContainer = null
 
-	stateMachine = null
 	start = (utilities) ->
-
-		window.getCurrentView = -> window.Ext.ComponentMgr.get($('.w3-task-view').attr('id'));
-
 		utils = utilities
 
 		wrikeUtils.onTaskViewRender render
 
 #		renderFilterPanel()
 
-	render = (task, taskView) ->
-		prepareStateButtons taskView
-		stateMachine.applyCurrentState task
+	render = (task) ->
+		if task?
+			stateMachine = addStateMachine()
+			stateMachine.task = task
+			stateMachine.applyCurrentState()
 
-	prepareStateButtons = (taskView) ->
-		if not stateMachine?
-			utils.log 'rendering buttons...'
-			stateMachine = new StateMachine taskView
+	addStateMachine = ->
+		stateMachine = new StateMachine()
+		buttonsContainerClass = "taist-stateButtonsContainer"
+		buttonsContainer = $ '.' + buttonsContainerClass
+		if buttonsContainer.length is 0
+			utils.log 'buttons container doesnot exist, creating new one'
+			buttonsContainer = $ '<div class="#{buttonsContainerClass}"></div>'
+			prevElement = $('.wspace-task-importance-button')
+			prevElement.after buttonsContainer
+			utils.log 'inserted buttons container: ', prevElement, buttonsContainer, buttonsContainer.parent()
+		else
+			utils.log('emptying buttons container: ', buttonsContainer)
+			buttonsContainer.empty()
+			utils.log('emptying result: ', buttonsContainer)
 
-			prevElement = $ '.wspace-task-importance-button'
+		for state in stateMachine.allStates
+			do (state) ->
+				button = createButton state, stateMachine
+				buttonsContainer.append button
+				state.button = button
 
-			for state in stateMachine.allStates
-				do (state) ->
-					buttonClass = "approval-button-#{state.id}"
-					newButtonContainer = $ """<div class="#{buttonClass}"></div>"""
-					prevElement.after newButtonContainer
-					prevElement = newButtonContainer
+		return stateMachine
 
-					button = new Ext.Button
-						renderTo: newButtonContainer[0]
-						text: state.buttonCaption
-						handler: ->
-							task = taskView.record
-
-							utils.log "updating task: ", task
-
-							stateMachine.changeState state, task
-
-						style: "float: left;margin-left: 15px;"
-
-					state.button = button
+	createButton = (state, stateMachine) ->
+		button = $("<a class=\"wrike-button-base x-btn-noicon\" style=\"width: auto; float: left; margin-left: 15px;\">" + state.buttonCaption + "</a>")
+		button.click ->
+			stateMachine.changeState state
+			return false
+		return button
 
 	renderFilterPanel = ->
 		filterPanel = new WrikeFilterPanel 'Approval'
@@ -54,46 +55,45 @@
 	class StateMachine
 		allStates: []
 		_initialNextStateIds: "toApprove"
-		_taskView: null
+		task: null
 
-		constructor: (@_taskView) ->
+		constructor: ->
 			@allStates.push new ApproveState("toApprove", "To approve", "To approve", "[ToApprove] ", ["declined", "approved"], "responsible", null)
 			@allStates.push new ApproveState("declined", "Decline", "Declined", "[Declined] ", ["toApprove"], "author", null)
 			@allStates.push new ApproveState("approved", "Approve", "Approved", "[Approved] ", [], "responsible", "1")
 
-		applyCurrentState: (task) ->
+		applyCurrentState: ->
 			currentState = null
 			for state in @allStates
-				if state.isUsedBy task
+				if state.isUsedBy @task
 					currentState = state
 
-			utils.log "applying states: task: ", task, "current state: ", currentState
+			@_applyState currentState, false
 
-			@_applyState currentState, task, false
+		changeState: (state) -> @_applyState state, true
 
-		changeState: (state, task) -> @_applyState state, task, true
-
-		_applyState: (newState, task, needUpdate) ->
+		_applyState: (newState, needUpdate) ->
 			if needUpdate
-				@_updateTaskWithState newState, task
+				@_updateTaskWithState newState
 
 			nextStateIds = newState?.nextStateIds ? @_initialNextStateIds
 			for state in @allStates
-				visible = nextStateIds.indexOf(state.id) >= 0 && (state.canBeSetOn task)
-				state.button.setVisible visible
+				visible = nextStateIds.indexOf(state.id) >= 0 && (state.canBeSetOn @task)
+				state.button.toggle visible
 
-		_updateTaskWithState: (currentState, task) ->
+		_updateTaskWithState: (currentState) ->
 			for state in @allStates
-				state.removeFromTask task
+				state.removeFromTask @task
 
-			currentState.addToTask task
+			currentState.addToTask @task
 
-			task.save @_taskView.callback
+			@task.save()
 
 
 	class ApproveState
 		nextStateIds: null
 		availableFor: null
+		button: null
 		constructor: (@id, @buttonCaption, @filterName, @tagText, @nextStateIds, @availableFor, @newTaskState) ->
 
 		isUsedBy: (task) -> (task.get "title").indexOf(@tagText) >= 0
@@ -192,28 +192,25 @@
 		getCurrentTask: -> @getCurrentTaskView()?["record"]
 
 		onTaskViewRender: (callback) ->
-
 			listenerName = "beforesetrecord"
+			listenersInPrototype = w2.task.View.prototype.xlisteners
 
-			taskViewListeners = w2.task.View.prototype.xlisteners
-
-			enhanceBeforesetrecord = (view, task) =>
-				utils.log 'beforesetrecord called: ', task, view
+			utils.aspect.after listenersInPrototype, listenerName, (view, task) ->
 				if task?
 					task.load (loadedTask) ->
+						utils.log 'set task: ', loadedTask.data.title
 						callback loadedTask, view
-
-			utils.aspect.after taskViewListeners, listenerName, enhanceBeforesetrecord
+				else
+					utils.log 'unset task'
+					return callback null, view
 
 			[currentTask, currentTaskView] = [@getCurrentTask(), @getCurrentTaskView()]
 
 			if currentTask? and currentTaskView?
-				utils.log 'current view found'
-				window.curView = currentTaskView
 
 				#manually replace already initialized listener in existing view
 				#better would be just to override it in prototype before any view is created - more early addon launch is required
-				enhancedListener = taskViewListeners[listenerName]
+				enhancedListener = listenersInPrototype[listenerName]
 				currentViewListeners = currentTaskView.events[listenerName].listeners[0]
 				currentViewListeners.fn = currentViewListeners.fireFn = enhancedListener
 
