@@ -10,82 +10,109 @@
         },
         'onApproval': {
             triggers: {
-                'Approve': 'accepted',
+                'Approve': 'accepted'
                 'Decline': 'declined'
             },
-            titleTag: 'To Approve',
+            titleTag: 'To Approve'
             author: true
         },  
         'accepted': {
-            titleTag: 'Approved',
+            titleTag: 'Approved'
             owner: true
         },
         'declined': {
             triggers: {
                 'Send for approval': 'onApproval'
             },  
-            titleTag: 'Declined',
+            titleTag: 'Declined'
             owner: true
+        }
+    }
+
+    wrikeConstants = {
+        common: {
+            classHidden: 'wrike-taist-hidden'
+            hiddenClassCss: '<style> .wrike-taist-hidden {display: none;} </style>'
+        },
+        filters: {
+            flagTemplate: '<a class="wrike-button-checkbox x-btn-noicon" href="#"></a>'
+            taistFiltersContainerId: 'wrike-taist-approval-filters'
+            flagsOuterContainerSelector: '.type-selector'
+            flagsInnerContainerSelector: '.x-column'
+            flagCheckedClass: 'x-btn-pressed'
+            streamTaskSelector: '.stream-task-entry'
+            streamViewButtonSelector: '.wspace_header_buttonStreamView'
+        },
+        task: {
+            containerSelector: '.wspace-task-widgets-title-view'
+            toolbarSelector: '.wspace-task-settings-bar'
+            taistToolbarId: 'wrike-taist-toolbar'
+            buttonTemplate: '<a class="wspace-task-settings-button"></a>'
+            buttonHighlightClass: 'x-btn-over'
         }
     }
 
     class WrikeTaskFilters
         filter: 'All'
-        flagTemplate = '<a class="wrike-button-checkbox x-btn-noicon" href="#"></a>';
+
+        cfg: wrikeConstants.filters
 
         renderFlags: ->
-            containerId = 'wrike-taist-approval-filters'
-            if $('#' + containerId).length
+            if $('#' + @cfg.taistFiltersContainerId).length
                 return
-            originalFlags = $('.type-selector')
+            originalFlags = $ @cfg.flagsOuterContainerSelector
             flags = originalFlags.clone()
-            flags.attr 'id', containerId
-            flagsContainer = flags.find('.x-column').empty()
+            flags.attr 'id', @cfg.taistFiltersContainerId
+            flagsContainer = flags.find(@cfg.flagsInnerContainerSelector)
+            flagsContainer.empty()
             originalFlags.after flags
             self = @
             for _, state of states
-                flag = $(flagTemplate)
+                flag = $(self.cfg.flagTemplate)
                 flag.text state.titleTag or 'All'
                 flagsContainer.append flag
                 if @filter is flag.text()
-                    flag.addClass('x-btn-pressed')
+                    flag.addClass(self.cfg.flagCheckedClass)
                 flag.on 'click', ->
-                    flagsContainer.find('a').removeClass('x-btn-pressed');
-                    $(@).addClass('x-btn-pressed')
+                    flagsContainer.find('a').
+                        removeClass(self.cfg.flagCheckedClass)
+                    $(@).addClass(self.cfg.flagCheckedClass)
                     self.filter = $(@).text()
                     self.filterTasks()
                     false
 
         filterTasks: ->
-            $('.stream-task-entry').each (i, element) =>
+            hidden = wrikeConstants.common.classHidden
+            $(@cfg.streamTaskSelector).each (i, element) =>
                 elm = $ element
                 if @filter is 'All'
-                    elm.removeClass 'wrike-taist-hidden'
+                    elm.removeClass hidden
                 else
                     taskTitle = elm.find('span').text()
                     if taskTitle.match '\\[' + @filter + '\\]'
-                        elm.removeClass 'wrike-taist-hidden'
+                        elm.removeClass hidden
                     else
-                        elm.addClass 'wrike-taist-hidden'
+                        elm.addClass hidden
             
 
 
     class WrikeTaskApprover
-        buttonTemplate: '<a class="wspace-task-settings-button"></a>'
+        cfg: wrikeConstants.task
 
         setTask: (task) ->
             if @task is task
-                return;
+                return
             @task = task
-            @title = $('.wspace-task-widgets-title-view').find('textarea')
+            @title = $(@cfg.containerSelector).find('textarea')
             @state = @stateFromTitle()
 
             # Have to remove the toolbar as view init event is being emmitted
             # multiple times from the stream view
-            $('#wrike-taist-toolbar').remove()
-            originalToolbar = $ '.wspace-task-settings-bar'
+            if $(@cfg.taistToolbarId).length
+                return
+            originalToolbar = $ @cfg.toolbarSelector
             @toolbar = originalToolbar.clone()
-            @toolbar.attr 'id', 'wrike-taist-toolbar'
+            @toolbar.attr 'id', @cfg.taistToolbarId
             @toolbar.empty()
             originalToolbar.after @toolbar
 
@@ -102,13 +129,14 @@
                     return stateName
 
         renderControls: ->
+            cfg = @cfg
             mOver = ->
-                $(@).addClass 'x-btn-over'
+                $(@).addClass cfg.buttonHighlightClass
             mOut = ->
-                $(@).removeClass 'x-btn-over'
+                $(@).removeClass cfg.buttonHighlightClass
             for buttonTitle, nextState of states[@state].triggers
                 do(buttonTitle, nextState) =>
-                    button = $(@buttonTemplate)
+                    button = $(cfg.buttonTemplate)
                     button.text buttonTitle
                     button.hover mOver, mOut
                     button.on 'click', =>
@@ -139,17 +167,18 @@
     start = (utilities) ->
         utils = utilities
 
-        style = $ '<style> .wrike-taist-hidden {display: none;} </style>'
+        style = $ wrikeConstants.common.hiddenClassCss
         $('html > head').append(style)
 
         taistWrike.onTaskViewRender (task) ->
             if not task
-                return;
+                return
             approver.setTask task
 
-        taistWrike.onStreamView ->
+        $(wrikeConstants.filters.streamViewButtonSelector).on 'click', ->
             filters.renderFlags()
             filters.filterTasks()
+            false
 
         if window.location.hash.match(/stream/)
             filters.renderFlags()
@@ -187,10 +216,5 @@
 
         onTaskChange: (callback) ->
             utils.aspect.after Wrike.Task, 'getChanges', (-> callback @)
-
-        onStreamView: (callback) ->
-            utils.aspect.before XMLHttpRequest, 'open', (requestMethod, requestUrl) =>
-                if requestUrl is 'https://www.wrike.com/ui/as_append3'
-                    callback()
 
     return {start}
