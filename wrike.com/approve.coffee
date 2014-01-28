@@ -217,4 +217,4 @@
         onTaskChange: (callback) ->
             utils.aspect.after Wrike.Task, 'getChanges', (-> callback @)
 
-    return {start}
+    {start}
