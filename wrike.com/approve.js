@@ -7,7 +7,8 @@
     'initial': {
       triggers: {
         'Send for approval': 'onApproval'
-      }
+      },
+      owner: true
     },
     'onApproval': {
       triggers: {
@@ -189,7 +190,7 @@
       var newPrefix;
       newPrefix = '[' + states[newState].titleTag + '] ';
       if (this.state === 'initial') {
-        this.title.val(newPrefix + this.title.val());
+        this.title.val(this.title.val());
       } else {
         this.title.val(this.title.val().replace(/^\[.+\]\s/, newPrefix));
       }

@@ -6,7 +6,8 @@
         'initial': {
             triggers: {
                 'Send for approval': 'onApproval'
-            }
+            },
+            owner: true
         },
         'onApproval': {
             triggers: {
@@ -150,7 +151,7 @@
         applyState: (newState) ->
             newPrefix = '[' + states[newState].titleTag + '] '
             if @state is 'initial'
-                @title.val(newPrefix + @title.val())
+                @title.val(@title.val())
             else
                 @title.val(@title.val().replace(/^\[.+\]\s/, newPrefix))
 
