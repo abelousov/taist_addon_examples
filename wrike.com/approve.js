@@ -132,7 +132,6 @@
         this.toolbar.attr('id', this.cfg.taistToolbarId);
         originalToolbar.after(this.toolbar);
       }
-      this.toolbar.empty();
       roles = taistWrike.myTaskRoles(task);
       if (roles.owner && states[this.state].owner || roles.author && states[this.state].author) {
         return this.renderControls();
@@ -163,6 +162,7 @@
       mOut = function() {
         return $(this).removeClass(cfg.buttonHighlightClass);
       };
+      this.toolbar.empty();
       _ref = states[this.state].triggers;
       _results = [];
       for (buttonTitle in _ref) {
@@ -187,8 +187,8 @@
     WrikeTaskApprover.prototype.applyState = function(newState) {
       var newPrefix;
       newPrefix = '[' + states[newState].titleTag + '] ';
-      if (this.state === 'initial') {
-        this.title.val(this.title.val());
+      if (this.state === 'initial' && newState !== 'initial') {
+        this.title.val(newPrefix + this.title.val());
       } else {
         this.title.val(this.title.val().replace(/^\[.+\]\s/, newPrefix));
       }

@@ -111,8 +111,6 @@
                 @toolbar.attr 'id', @cfg.taistToolbarId
                 originalToolbar.after @toolbar
 
-            @toolbar.empty()
-
             roles = taistWrike.myTaskRoles(task)
             if roles.owner and states[@state].owner or roles.author and states[@state].author
                 @renderControls()
@@ -131,6 +129,9 @@
                 $(@).addClass cfg.buttonHighlightClass
             mOut = ->
                 $(@).removeClass cfg.buttonHighlightClass
+
+            @toolbar.empty()
+
             for buttonTitle, nextState of states[@state].triggers
                 do(buttonTitle, nextState) =>
                     button = $(cfg.buttonTemplate)
@@ -146,8 +147,8 @@
 
         applyState: (newState) ->
             newPrefix = '[' + states[newState].titleTag + '] '
-            if @state is 'initial'
-                @title.val(@title.val())
+            if @state is 'initial' and newState isnt 'initial'
+                @title.val(newPrefix + @title.val())
             else
                 @title.val(@title.val().replace(/^\[.+\]\s/, newPrefix))
 
