@@ -121,20 +121,18 @@
 
     WrikeTaskApprover.prototype.setTask = function(task) {
       var originalToolbar, roles;
-      if (this.task === task) {
-        return;
+      if (this.task !== task) {
+        this.title = $(this.cfg.containerSelector).find('textarea');
+        this.state = this.stateFromTitle();
       }
       this.task = task;
-      this.title = $(this.cfg.containerSelector).find('textarea');
-      this.state = this.stateFromTitle();
-      if ($(this.cfg.taistToolbarId).length) {
-        return;
+      if (!$('#' + this.cfg.taistToolbarId).length) {
+        originalToolbar = $(this.cfg.toolbarSelector);
+        this.toolbar = originalToolbar.clone();
+        this.toolbar.attr('id', this.cfg.taistToolbarId);
+        originalToolbar.after(this.toolbar);
       }
-      originalToolbar = $(this.cfg.toolbarSelector);
-      this.toolbar = originalToolbar.clone();
-      this.toolbar.attr('id', this.cfg.taistToolbarId);
       this.toolbar.empty();
-      originalToolbar.after(this.toolbar);
       roles = taistWrike.myTaskRoles(task);
       if (roles.owner && states[this.state].owner || roles.author && states[this.state].author) {
         return this.renderControls();
@@ -219,6 +217,12 @@
       }
       return approver.setTask(task);
     });
+    taistWrike.onTaskChange(function(task) {
+      if (!task) {
+        return;
+      }
+      return approver.setTask(task);
+    });
     $(wrikeConstants.filters.streamViewButtonSelector).on('click', function() {
       filters.renderFlags();
       filters.filterTasks();
@@ -262,7 +266,7 @@
       }
     },
     onTaskChange: function(callback) {
-      return utils.aspect.after(Wrike.Task, 'getChanges', (function() {
+      return utils.aspect.after($wrike.record.Base.prototype, 'getChanges', (function() {
         return callback(this);
       }));
     }

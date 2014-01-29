@@ -94,28 +94,24 @@
                         elm.removeClass hidden
                     else
                         elm.addClass hidden
-            
-
 
     class WrikeTaskApprover
         cfg: wrikeConstants.task
 
         setTask: (task) ->
-            if @task is task
-                return
-            @task = task
-            @title = $(@cfg.containerSelector).find('textarea')
-            @state = @stateFromTitle()
+            if @task isnt task
+                @title = $(@cfg.containerSelector).find('textarea')
+                @state = @stateFromTitle()
 
-            # Have to remove the toolbar as view init event is being emmitted
-            # multiple times from the stream view
-            if $(@cfg.taistToolbarId).length
-                return
-            originalToolbar = $ @cfg.toolbarSelector
-            @toolbar = originalToolbar.clone()
-            @toolbar.attr 'id', @cfg.taistToolbarId
+            @task = task
+
+            if not $('#' + @cfg.taistToolbarId).length
+                originalToolbar = $ @cfg.toolbarSelector
+                @toolbar = originalToolbar.clone()
+                @toolbar.attr 'id', @cfg.taistToolbarId
+                originalToolbar.after @toolbar
+
             @toolbar.empty()
-            originalToolbar.after @toolbar
 
             roles = taistWrike.myTaskRoles(task)
             if roles.owner and states[@state].owner or roles.author and states[@state].author
@@ -176,6 +172,11 @@
                 return
             approver.setTask task
 
+        taistWrike.onTaskChange (task) ->
+            if not task
+                return
+            approver.setTask task
+
         $(wrikeConstants.filters.streamViewButtonSelector).on 'click', ->
             filters.renderFlags()
             filters.filterTasks()
@@ -216,6 +217,6 @@
                 callback currentTask, currentTaskView
 
         onTaskChange: (callback) ->
-            utils.aspect.after Wrike.Task, 'getChanges', (-> callback @)
+            utils.aspect.after $wrike.record.Base.prototype, 'getChanges', (-> callback @)
 
     {start}
