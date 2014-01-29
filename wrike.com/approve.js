@@ -119,8 +119,15 @@
 
     WrikeTaskApprover.prototype.cfg = wrikeConstants.task;
 
+    WrikeTaskApprover.prototype.eventObject = null;
+
     WrikeTaskApprover.prototype.setTask = function(task) {
-      var originalToolbar, roles;
+      var eventObject, originalToolbar, roles;
+      eventObject = taistWrike.currentTaskView();
+      console.log(eventObject);
+      eventObject.on('afterrender', function() {
+        return alert(1);
+      });
       if (this.task !== task) {
         this.title = $(this.cfg.containerSelector).find('textarea');
         this.state = this.stateFromTitle();
@@ -131,6 +138,7 @@
         this.toolbar = originalToolbar.clone();
         this.toolbar.attr('id', this.cfg.taistToolbarId);
         originalToolbar.after(this.toolbar);
+        this.toolbar.empty();
       }
       roles = taistWrike.myTaskRoles(task);
       if (roles.owner && states[this.state].owner || roles.author && states[this.state].author) {
@@ -207,21 +215,20 @@
   approver = new WrikeTaskApprover();
   filters = new WrikeTaskFilters();
   start = function(utilities) {
-    var style;
+    var maybeSetTask, style;
     utils = utilities;
     style = $(wrikeConstants.common.hiddenClassCss);
     $('html > head').append(style);
-    taistWrike.onTaskViewRender(function(task) {
+    maybeSetTask = function(task) {
       if (!task) {
         return;
       }
       return approver.setTask(task);
-    });
-    taistWrike.onTaskChange(function(task) {
-      if (!task) {
-        return;
-      }
-      return approver.setTask(task);
+    };
+    taistWrike.onTaskViewRender(maybeSetTask);
+    taistWrike.onTaskChange(maybeSetTask);
+    $wrike.bus.on('list.tasklist.task.selected', function() {
+      return maybeSetTask(taistWrike.currentTask());
     });
     $(wrikeConstants.filters.streamViewButtonSelector).on('click', function() {
       filters.renderFlags();
@@ -243,6 +250,13 @@
         author: (task.get('author')) === this.me()
       };
     },
+    currentTaskView: function() {
+      return window.Ext.ComponentMgr.get($('.wspace-task-view').attr('id'));
+    },
+    currentTask: function() {
+      var _ref;
+      return (_ref = this.currentTaskView()) != null ? _ref['record'] : void 0;
+    },
     onTaskViewRender: function(callback) {
       var currentTask, currentTaskView, currentViewListeners, enhancedListener, listenerName, listenersInPrototype;
       listenerName = 'load';
@@ -256,8 +270,8 @@
           return callback(null, view);
         }
       });
-      currentTaskView = window.Ext.ComponentMgr.get($('.wspace-task-view').attr('id'));
-      currentTask = currentTaskView != null ? currentTaskView['record'] : void 0;
+      currentTaskView = this.currentTaskView();
+      currentTask = this.currentTask();
       if ((currentTask != null) && (currentTaskView != null)) {
         enhancedListener = listenersInPrototype[listenerName];
         currentViewListeners = currentTaskView.events[listenerName].listeners[0];

@@ -55,7 +55,6 @@
 
     class WrikeTaskFilters
         filter: 'All'
-
         cfg: wrikeConstants.filters
 
         renderFlags: ->
@@ -97,8 +96,14 @@
 
     class WrikeTaskApprover
         cfg: wrikeConstants.task
+        eventObject: null
 
         setTask: (task) ->
+            eventObject = taistWrike.currentTaskView()
+            console.log eventObject
+            eventObject.on 'afterrender', ->
+                alert 1
+                
             if @task isnt task
                 @title = $(@cfg.containerSelector).find('textarea')
                 @state = @stateFromTitle()
@@ -110,6 +115,7 @@
                 @toolbar = originalToolbar.clone()
                 @toolbar.attr 'id', @cfg.taistToolbarId
                 originalToolbar.after @toolbar
+                @toolbar.empty()
 
             roles = taistWrike.myTaskRoles(task)
             if roles.owner and states[@state].owner or roles.author and states[@state].author
@@ -168,15 +174,17 @@
         style = $ wrikeConstants.common.hiddenClassCss
         $('html > head').append(style)
 
-        taistWrike.onTaskViewRender (task) ->
+        maybeSetTask = (task) ->
             if not task
                 return
             approver.setTask task
 
-        taistWrike.onTaskChange (task) ->
-            if not task
-                return
-            approver.setTask task
+        taistWrike.onTaskViewRender maybeSetTask
+
+        taistWrike.onTaskChange maybeSetTask
+
+        $wrike.bus.on 'list.tasklist.task.selected', ->
+            maybeSetTask taistWrike.currentTask()
 
         $(wrikeConstants.filters.streamViewButtonSelector).on 'click', ->
             filters.renderFlags()
@@ -196,6 +204,12 @@
                 author: (task.get 'author') is @me()
             }
 
+        currentTaskView: ->
+            window.Ext.ComponentMgr.get ($('.wspace-task-view').attr 'id')
+
+        currentTask: ->
+            @currentTaskView()?['record']
+
         onTaskViewRender: (callback) ->
             listenerName = 'load'
             listenersInPrototype = $wspace.task.View.prototype.xlisteners
@@ -207,8 +221,8 @@
                 else
                     return callback null, view
 
-            currentTaskView = window.Ext.ComponentMgr.get ($('.wspace-task-view').attr 'id')
-            currentTask = currentTaskView?['record']
+            currentTaskView = @currentTaskView()
+            currentTask = @currentTask()
 
             if currentTask? and currentTaskView?
                 enhancedListener = listenersInPrototype[listenerName]
