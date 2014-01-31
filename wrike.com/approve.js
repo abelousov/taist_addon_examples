@@ -122,12 +122,8 @@
     WrikeTaskApprover.prototype.eventObject = null;
 
     WrikeTaskApprover.prototype.setTask = function(task) {
-      var eventObject, originalToolbar, roles;
+      var eventObject, originalToolbar;
       eventObject = taistWrike.currentTaskView();
-      console.log(eventObject);
-      eventObject.on('afterrender', function() {
-        return alert(1);
-      });
       if (this.task !== task) {
         this.title = $(this.cfg.containerSelector).find('textarea');
         this.state = this.stateFromTitle();
@@ -138,12 +134,8 @@
         this.toolbar = originalToolbar.clone();
         this.toolbar.attr('id', this.cfg.taistToolbarId);
         originalToolbar.after(this.toolbar);
-        this.toolbar.empty();
       }
-      roles = taistWrike.myTaskRoles(task);
-      if (roles.owner && states[this.state].owner || roles.author && states[this.state].author) {
-        return this.renderControls();
-      }
+      return this.renderControls();
     };
 
     WrikeTaskApprover.prototype.stateFromTitle = function() {
@@ -161,8 +153,14 @@
     };
 
     WrikeTaskApprover.prototype.renderControls = function() {
-      var buttonTitle, cfg, mOut, mOver, nextState, _ref, _results,
+      var buttonTitle, cfg, mOut, mOver, nextState, roles, _ref, _results,
         _this = this;
+      this.toolbar.empty();
+      roles = taistWrike.myTaskRoles(this.task);
+      if (!(roles.owner && states[this.state].owner || roles.author && states[this.state].author)) {
+        return;
+      }
+      console.log(this.task.data['responsibleList']);
       cfg = this.cfg;
       mOver = function() {
         return $(this).addClass(cfg.buttonHighlightClass);
@@ -170,7 +168,6 @@
       mOut = function() {
         return $(this).removeClass(cfg.buttonHighlightClass);
       };
-      this.toolbar.empty();
       _ref = states[this.state].triggers;
       _results = [];
       for (buttonTitle in _ref) {

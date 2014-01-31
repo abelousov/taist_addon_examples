@@ -100,9 +100,6 @@
 
         setTask: (task) ->
             eventObject = taistWrike.currentTaskView()
-            console.log eventObject
-            eventObject.on 'afterrender', ->
-                alert 1
                 
             if @task isnt task
                 @title = $(@cfg.containerSelector).find('textarea')
@@ -115,11 +112,8 @@
                 @toolbar = originalToolbar.clone()
                 @toolbar.attr 'id', @cfg.taistToolbarId
                 originalToolbar.after @toolbar
-                @toolbar.empty()
 
-            roles = taistWrike.myTaskRoles(task)
-            if roles.owner and states[@state].owner or roles.author and states[@state].author
-                @renderControls()
+            @renderControls()
 
         stateFromTitle: ->
             m = @title.val().match /^\[(.+)\].*/
@@ -130,26 +124,27 @@
                     return stateName
 
         renderControls: ->
-            cfg = @cfg
-            mOver = ->
-                $(@).addClass cfg.buttonHighlightClass
-            mOut = ->
-                $(@).removeClass cfg.buttonHighlightClass
-
             @toolbar.empty()
 
-            for buttonTitle, nextState of states[@state].triggers
-                do(buttonTitle, nextState) =>
-                    button = $(cfg.buttonTemplate)
-                    button.text buttonTitle
-                    button.hover mOver, mOut
-                    button.on 'click', =>
-                        @toolbar.empty()
-                        @applyState nextState
-                        @renderControls()
-                        false
-                    @toolbar.append button
-                
+            roles = taistWrike.myTaskRoles(@task)
+            if roles.owner and states[@state].owner or roles.author and states[@state].author
+                cfg = @cfg
+                mOver = ->
+                    $(@).addClass cfg.buttonHighlightClass
+                mOut = ->
+                    $(@).removeClass cfg.buttonHighlightClass
+
+                for buttonTitle, nextState of states[@state].triggers
+                    do(buttonTitle, nextState) =>
+                        button = $(cfg.buttonTemplate)
+                        button.text buttonTitle
+                        button.hover mOver, mOut
+                        button.on 'click', =>
+                            @toolbar.empty()
+                            @applyState nextState
+                            @renderControls()
+                            false
+                        @toolbar.append button
 
         applyState: (newState) ->
             newPrefix = '[' + states[newState].titleTag + '] '
