@@ -1,0 +1,18 @@
+#taist-wrike-approval-send-for-approval {
+    background-color: #8686E8;
+    text-shadow: none;
+}
+
+#taist-wrike-approval-approve {
+    background-color: #86E886;
+    text-shadow: none;
+}
+
+#taist-wrike-approval-decline {
+    background-color: #E88686;
+    text-shadow: none;
+}
+
+.taist-wrike-x-btn-over {
+    opacity: 0.5
+}

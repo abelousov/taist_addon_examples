@@ -49,7 +49,7 @@
             toolbarSelector: '.wspace-task-settings-bar'
             taistToolbarId: 'wrike-taist-toolbar'
             buttonTemplate: '<a class="wspace-task-settings-button"></a>'
-            buttonHighlightClass: 'x-btn-over'
+            buttonHighlightClass: 'taist-wrike-x-btn-over'
         }
     }
 
@@ -136,9 +136,11 @@
 
                 for buttonTitle, nextState of states[@state].triggers
                     do(buttonTitle, nextState) =>
+                        idSuffix = buttonTitle.toLowerCase().replace(/\s/g, '-')
                         button = $(cfg.buttonTemplate)
                         button.text buttonTitle
                         button.hover mOver, mOut
+                        button.attr 'id', 'taist-wrike-approval-' + idSuffix
                         button.on 'click', =>
                             @toolbar.empty()
                             @applyState nextState

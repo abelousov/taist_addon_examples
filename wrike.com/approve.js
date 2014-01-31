@@ -49,7 +49,7 @@
       toolbarSelector: '.wspace-task-settings-bar',
       taistToolbarId: 'wrike-taist-toolbar',
       buttonTemplate: '<a class="wspace-task-settings-button"></a>',
-      buttonHighlightClass: 'x-btn-over'
+      buttonHighlightClass: 'taist-wrike-x-btn-over'
     }
   };
   WrikeTaskFilters = (function() {
@@ -157,36 +157,36 @@
         _this = this;
       this.toolbar.empty();
       roles = taistWrike.myTaskRoles(this.task);
-      if (!(roles.owner && states[this.state].owner || roles.author && states[this.state].author)) {
-        return;
+      if (roles.owner && states[this.state].owner || roles.author && states[this.state].author) {
+        cfg = this.cfg;
+        mOver = function() {
+          return $(this).addClass(cfg.buttonHighlightClass);
+        };
+        mOut = function() {
+          return $(this).removeClass(cfg.buttonHighlightClass);
+        };
+        _ref = states[this.state].triggers;
+        _results = [];
+        for (buttonTitle in _ref) {
+          nextState = _ref[buttonTitle];
+          _results.push((function(buttonTitle, nextState) {
+            var button, idSuffix;
+            idSuffix = buttonTitle.toLowerCase().replace(/\s/g, '-');
+            button = $(cfg.buttonTemplate);
+            button.text(buttonTitle);
+            button.hover(mOver, mOut);
+            button.attr('id', 'taist-wrike-approval-' + idSuffix);
+            button.on('click', function() {
+              _this.toolbar.empty();
+              _this.applyState(nextState);
+              _this.renderControls();
+              return false;
+            });
+            return _this.toolbar.append(button);
+          })(buttonTitle, nextState));
+        }
+        return _results;
       }
-      console.log(this.task.data['responsibleList']);
-      cfg = this.cfg;
-      mOver = function() {
-        return $(this).addClass(cfg.buttonHighlightClass);
-      };
-      mOut = function() {
-        return $(this).removeClass(cfg.buttonHighlightClass);
-      };
-      _ref = states[this.state].triggers;
-      _results = [];
-      for (buttonTitle in _ref) {
-        nextState = _ref[buttonTitle];
-        _results.push((function(buttonTitle, nextState) {
-          var button;
-          button = $(cfg.buttonTemplate);
-          button.text(buttonTitle);
-          button.hover(mOver, mOut);
-          button.on('click', function() {
-            _this.toolbar.empty();
-            _this.applyState(nextState);
-            _this.renderControls();
-            return false;
-          });
-          return _this.toolbar.append(button);
-        })(buttonTitle, nextState));
-      }
-      return _results;
     };
 
     WrikeTaskApprover.prototype.applyState = function(newState) {
