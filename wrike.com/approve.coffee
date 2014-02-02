@@ -99,8 +99,6 @@
         eventObject: null
 
         setTask: (task) ->
-            eventObject = taistWrike.currentTaskView()
-                
             if @task isnt task
                 @title = $(@cfg.containerSelector).find('textarea')
                 @state = @stateFromTitle()
@@ -141,6 +139,7 @@
                         button.text buttonTitle
                         button.hover mOver, mOut
                         button.attr 'id', 'taist-wrike-approval-' + idSuffix
+                        button.addClass 'taist-wrike-approval-button'
                         button.on 'click', =>
                             @toolbar.empty()
                             @applyState nextState

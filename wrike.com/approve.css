@@ -1,18 +1,29 @@
+#wrike-taist-toolbar {
+  padding-left: 20px;
+}
+
+.taist-wrike-approval-button {
+  text-shadow: none;
+  display: inline-block;
+  width: 130px;
+  padding: 0;
+  margin-top: 0;
+  margin-right: 0;
+  margin-right: 15px;
+  margin-bottom: 0;
+}
+
 #taist-wrike-approval-send-for-approval {
     background-color: #78b0ff;
-    text-shadow: none;
 }
 
 #taist-wrike-approval-approve {
     background-color: #86E886;
-    text-shadow: none;
 }
 
 #taist-wrike-approval-decline {
     background-color: #E88686;
-    text-shadow: none;
 }
 
 .taist-wrike-x-btn-over {
-    opacity: 0.5
 }
