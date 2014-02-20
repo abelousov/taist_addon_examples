@@ -1,0 +1,18 @@
+.componentsEditTextarea {
+  width: 100%;
+  margin: 10px 0;
+}
+
+.componentsSaveButton {
+  margin-right: 10px;
+  margin-bottom: 10px;
+}
+
+.componentSelectionWidget {
+  font-weight: normal;
+  margin-left: 50px;
+}
+
+.componentSelectDropdown {
+  width: 150px;
+}

@@ -3,115 +3,182 @@
 
   start = (utilities, entryPoint) ->
     utils = utilities
-    storage.init()
+    storage.init ->
+      currentPage =
+        switch entryPoint
+          when 'settings' then settingsForm
+          when 'editIssue' then editIssueForm
+          when 'createIssue' then createIssueForm
+          when 'showIssues' then issuesList
+      currentPage.render()
 
-    switch entryPoint
-      when 'settings' then settingsPage.render()
-
-  settingsPage =
+  settingsForm =
+    _editor: null
+    _compontentsTextArea: null
     render: ->
-      utils.wait.elementRender '.menu', (menuContainer) =>
-        @_appendComponentsLink menuContainer
+      githubUtils.addSettingsItem 'Components', @_getEditorRenderer()
 
-    _appendComponentsLink: (menuContainer) ->
-      componentsLink = $ '<a href=\'components\'>Components</a>'
+    _getEditorRenderer: -> =>
+      @_editor = $ @_editorTemplate
 
-      menuContainer.append (($ '<li></li>').append componentsLink)
-      componentsLink.click (e) =>
-        @_formatLinkAsSelected componentsLink
-        @_renderComponentsEditor()
+      @_componentsTextArea = @_editor.find 'textarea'
+      saveButton = @_editor.find 'button'
 
-        return false
-
-
-    _formatLinkAsSelected: (componentsLink) ->
-      selectedFormatProperties = ['font-weight', 'border-left', 'color']
-      currentSelectedLink = $ ('.js-selected-navigation-item.selected')
-
-      for property in selectedFormatProperties
-        selPropertyValue = currentSelectedLink.css property
-
-        currentSelectedLink.css property, (componentsLink.css property)
-        componentsLink.css property, selPropertyValue
-
-    _renderComponentsEditor: ->
-      container = $ '.repo-settings-content'
-
-      container.html @_editorTemplate
-
-      contentsTextArea = container.find 'textarea'
-      saveButton = container.find 'button'
-
-      storage.get (componentsData) ->
-        contentsTextArea.val componentsData
+      @_componentsTextArea.val @_getComponentsValueToDisplay()
 
       saveButton.click (e) =>
         e.preventDefault()
-        @_saveComponentsData container, contentsTextArea
+        @_saveComponentsData @_editor
 
-    _saveComponentsData: (container, contentsTextArea) ->
-      newComponentsData = contentsTextArea.val()
+      return @_editor
 
-      correctData = true
-      try
-        componentsJSON = JSON.parse newComponentsData
-        console.log 'parsed: ', componentsJSON
-      catch
-        correctData = false
+    _getComponentsValueToDisplay: ->
+      componentStrings = (([comp.id,comp.name,comp.responsible].join ',') for comp in storage.getComponents())
+      return componentStrings.join '\n'
 
-      if not correctData
-        @_displaySaveResult container, false, 'components data should be a valid JSON containing component ids and names and accounts of people responsible for them. Show <a id="componentsJsonExample" href="#">example</a>'
+    _saveComponentsData: (@editor) ->
+      newComponentsData = @_componentsTextArea.val()
 
-        @_renderJsonExample container, contentsTextArea
+      storage.setComponentsData newComponentsData, (err) =>
+        if err?
+          @_displaySaveResult false, err.message + ' <a id="componentsJsonExample" href="#">Show example</a>'
+          @_renderJsonExample()
 
-      else
-        storage.set componentsJSON, (err) =>
-          @_displaySaveResult container, not err?, err?.message
+        else
+          @_displaySaveResult not err?, err?.message
 
-    _displaySaveResult: (container, isSuccessful, message) ->
+    _displaySaveResult: (isSuccessful, message) ->
       [text, color] =
         if isSuccessful
           ['Saved successfully', 'green']
         else
           ['Error', 'red']
 
-      (container.find '#resultType').css('color', color).text text
-      if message?
-        (container.find '#resultContents').html ': ' + message
+      (@_editor.find '#componentSaveResult').css('color', color).text text
+      (@_editor.find '#componentSaveResultContents').html (if message? then ": #{message}" else '')
 
-    _renderJsonExample: (container, contentsTextArea) ->
-      (container.find '#componentsJsonExample').click (e) ->
-        e.preventDefault()
+    _renderJsonExample: ->
+      (@_editor.find '#componentsJsonExample').click =>
+        @_componentsTextArea.val @_getComponentsExample() + @_componentsTextArea.val()
+        return false
 
-        example = '{\n  "1": {\n    "name": "Authorization",\n    "responsible": "fortnox"\n  },\n\n  "2": {\n    "name": "User manual",\n    "resonsible": "docsguru"\n  }\n}'
-
-        contentsTextArea.val ("=== Example:\n #{example} \n=== End of example\n\n") + contentsTextArea.val()
+    _getComponentsExample: ->
+      '=== Example:\n\n1,Authorization,fortknoxguard\n2,User manual,docsguru\n\n=== End of example\n\n'
 
     _editorTemplate: '
             <div class="tab-content">
                 <div class="boxed-group">
                   <h3>Edit components</h3>
                   <div class="boxed-group-inner">
-                      <textarea rows="20" style="width: 100%; margin: 10px 0;"></textarea>
-                      <button type="submit" class="button primary" style="margin-right: 10px;margin-bottom: 10px;">Save</button><span id="resultType"></span><span id="resultContents"></span>
+                      <textarea rows="20" class="componentsEditTextarea"></textarea>
+                      <button type="submit" class="button primary componentsSaveButton">Save</button><span><span id="componentSaveResult"></span><span id="componentSaveResultContents"></span></span>
                       </div>
                 </div>
             </div>
           '
 
+  createIssueForm =
+    render: ->
+      utils.wait.elementRender '.assignee,infobar-widget', (previousWidget) =>
+        componentsWidget = @_createComponentsWidget()
+        previousWidget.after componentsWidget
+
+        componentsDropdown = componentsWidget.find '.componentSelectDropdown'
+
+        saveButton = $ '.form-actions .button.primary'
+
+        saveButton.click ->
+          selectedComponentId = componentsDropdown.val()
+          console.log 'selected component: "', selectedComponentId + '"'
+          if selectedComponentId is 'NOT_SET'
+            #TODO: display error here
+            return false
+
+          else
+            storage.storeComponentForNewTask selectedComponentId, ->
+ 
+    _createComponentsWidget: ->
+      componentOptionsArray = ("""<option value="#{component.id}">#{component.name}</option>""" for component in storage.getComponents())
+
+      dropdownContents = $ """<span class="componentSelectionWidget infobar-widget text"></
+        <label>Component: </label><select class="componentSelectDropdown"><option value="NOT_SET">---</option>#{componentOptionsArray}</select>
+      </span>"""
+
+      return dropdownContents
+
   storage =
-    _componentContentsKey: "components"
     _getOwnerAndRepo: -> location.pathname.match(new RegExp('^/(\\w+/\\w+)'))[1]
 
-    init: -> utils.companyData.setCompanyKey @_getOwnerAndRepo()
+    _components: null
 
-    get: (callback) ->
-      utils.companyData.get @_componentContentsKey, (err, res) ->
+    init: (callback) ->
+      utils.companyData.setCompanyKey @_getOwnerAndRepo()
+
+      utils.companyData.get 'components', (err, componentsData) =>
         if not err?
-          callback res
-    set: (newValue, callback) ->
-      utils.companyData.set @_componentContentsKey, newValue, (err) -> callback err
+          @_components = componentsData
+          callback()
+
+    getComponents: ->
+      @_components
+
+    setComponentsData: (newComponentsValue, callback) ->
+
+      errorMessage = @_setComponentsFromString newComponentsValue
+      if errorMessage?
+        callback new Error errorMessage
+
+      else
+        utils.companyData.set 'components', @_components, (err) ->
+          if not err?
+            callback null
+
+    _setComponentsFromString: (componentsString) ->
+      newComponents = []
+      if componentsString.length is 0
+       return 'empty components list'
+
+      stringNumber = 0
+      for componentString, stringNumber in componentsString.trim().split '\n'
+        componentParts = componentString.trim().split ','
+        if componentParts.length != 3
+          return 'string ' + (stringNumber + 1) + ': data should be a list of strings "component_id,component_name,responsible_account"'
+
+          newComponents.push {id: componentParts[0], name: componentParts[1], responsible: componentParts[2]}
+
+      @_components = newComponents
 
 
+    storeComponentForNewTask: (componentId, callback) ->
+      utils.companyData.set 'componentForNewTask', componentId, (err) ->
+        if not err?
+          callback()
+
+  issuesList =
+    render: -> console.log 'rendered issues list'
+
+  githubUtils =
+    addSettingsItem: (itemName, contentsRenderer) ->
+      utils.wait.elementRender '#repo-settings .menu', (menuContainer) ->
+        newLink = $ "<a href=\"#\">#{itemName}</a>"
+        menuContainer.append (($ '<li></li>').append newLink)
+
+        newLink.click ->
+          _formatLinkAsSelected newLink
+          contentsContainer = $ '.repo-settings-content'
+          contentsContainer.empty()
+
+          contentsContainer.append contentsRenderer()
+          return false
+
+      _formatLinkAsSelected = (newLink) ->
+        selectedFormatProperties = ['font-weight', 'border-left', 'color']
+        previousSelectedLink = $ ('.js-selected-navigation-item.selected')
+
+        for property in selectedFormatProperties
+          selPropertyValue = previousSelectedLink.css property
+
+          previousSelectedLink.css property, (newLink.css property)
+          newLink.css property, selPropertyValue
 
   return {start}
