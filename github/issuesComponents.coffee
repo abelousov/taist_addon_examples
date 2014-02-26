@@ -1,12 +1,13 @@
 ->
-  utils = null
+  taistApi = null
 
-  start = (utilities, entryPoint) ->
-    utils = utilities
+  start = (TaistAPI, entryPoint) ->
+    taistApi = TaistAPI
+
+    #settingsForm can be displayed dynamically, so wait for it to render from any page
+    settingsForm.renderOnSettingsPageDisplay()
+
     storage.init ->
-      #settingsForm can be displayed dynamically, so wait for it to render from any page
-      settingsForm.renderOnSettingsPageDisplay()
-
       if storage.componentsEnabled() and storage.getComponents().length > 0
         currentPage =
           switch entryPoint
@@ -109,7 +110,7 @@
     _required: -> storage.componentRequired()
 
     render: ->
-      utils.wait.elementRender '.assignee.infobar-widget', (nextWidget) =>
+      taistApi.wait.elementRender '.assignee.infobar-widget', (nextWidget) =>
         @_renderWidget nextWidget
 
         @_addCheckForRequiredComponent()
@@ -140,7 +141,7 @@
 
         findAssigneeDropdown = -> (assigneeWidget.find '.select-menu-modal-holder')
 
-        utils.wait.once (-> findAssigneeDropdown().length > 0), ->
+        taistApi.wait.once (-> findAssigneeDropdown().length > 0), ->
           component = storage.getComponent componentId
           responsible = component?.responsible ? ''
           responsibleRadioButton = assigneeWidget.find """input[type="radio"][value="#{responsible}"]"""
@@ -281,9 +282,9 @@
     _settings: null
 
     init: (callback) ->
-      utils.companyData.setCompanyKey @_getOwnerAndRepo()
+      taistApi.companyData.setCompanyKey @_getOwnerAndRepo()
 
-      utils.companyData.get 'settings', (settings) =>
+      taistApi.companyData.get 'settings', (settings) =>
         @_settings = settings ? {}
         callback()
 
@@ -302,7 +303,7 @@
           callback new Error errorMessage
           return
 
-      utils.companyData.set 'settings', @_settings, ->
+      taistApi.companyData.set 'settings', @_settings, ->
         callback()
 
     _setComponentsFromString: (componentsString) ->
@@ -321,13 +322,13 @@
       return null
 
     storeComponentForNewTask: (componentId, callback) ->
-      utils.userData.set 'componentForNewTask', componentId, -> callback()
+      taistApi.userData.set 'componentForNewTask', componentId, -> callback()
 
     _deleteComponentForNewTask: (callback) ->
-      utils.userData.delete 'componentForNewTask', -> callback()
+      taistApi.userData.delete 'componentForNewTask', -> callback()
 
     _getComponentForNewTask: (callback) ->
-      utils.userData.get 'componentForNewTask', (componentId) -> callback componentId
+      taistApi.userData.get 'componentForNewTask', (componentId) -> callback componentId
 
     assignComponentIfTaskJustCreated: (taskId, callback) ->
       @_getComponentForNewTask (componentId) =>
@@ -339,13 +340,13 @@
           callback()
 
     assignComponentToTask: (taskId, componentId, callback) ->
-      utils.companyData.setPart 'assignedComponents', taskId, componentId, -> callback()
+      taistApi.companyData.setPart 'assignedComponents', taskId, componentId, -> callback()
 
     getComponentForTask: (taskId, callback) ->
-      utils.companyData.getPart 'assignedComponents', taskId, (componentId) -> callback componentId
+      taistApi.companyData.getPart 'assignedComponents', taskId, (componentId) -> callback componentId
 
     getAssignedComponents: (callback) ->
-      utils.companyData.get 'assignedComponents', (assignedComponents) -> callback assignedComponents
+      taistApi.companyData.get 'assignedComponents', (assignedComponents) -> callback assignedComponents
 
   issuesList =
     _assignedComponents: null
@@ -355,7 +356,7 @@
       storage.getAssignedComponents (assignedComponents) =>
         @_assignedComponents = assignedComponents
 
-        utils.wait.elementRender '.issues-list', =>
+        taistApi.wait.elementRender '.issues-list', =>
           @_renderComponentFilter()
           @_filterIssuesByComponent()
 
@@ -394,34 +395,30 @@
     _settingsMenuSelector: '#repo-settings .menu'
 
     addSettingsItem: (itemName, createTabContents) ->
-      utils.wait.elementRender @_settingsMenuSelector, (menu) =>
-        newSettingsTab = @_createSettingsItemTab itemName
+      taistApi.wait.elementRender @_settingsMenuSelector, (menu) =>
         menuItemClick = =>
+          newSettingsTab = @_createSettingsItemTab itemName
+          tabContents = createTabContents()
+
+          for partType, containerSelector of {headerControls: '.boxed-group.boxed-group-action', innerContents: '.boxed-group-inner'}
+            (newSettingsTab.find containerSelector).append tabContents[partType]
+
           ($ @_settingsTabContainerSelector).empty().append newSettingsTab
 
         menuItem = @_createSettingsMenuItem itemName, menuItemClick
         menu.append menuItem
 
-        tabContents = createTabContents()
-
-        for headerControl in tabContents.headerControls
-          (newSettingsTab.find '.boxed-group.boxed-group-action').append headerControl
-
-        for contents in tabContents.innerContents
-          (newSettingsTab.find '.boxed-group-inner').append contents
-
     _createSettingsMenuItem: (itemName, onSelected) ->
-      do ->
-        newItem = $ "<a></a>",
-            href: "#",
-            text: itemName
-            click: ->
-              githubUtils._switchSelectedMenuItemTo newItem
-              onSelected()
-              return false
-        newItem.addClass @_settingsItemLinkClass
+      newItem = $ "<a></a>",
+          href: "#",
+          text: itemName
+          click: =>
+            @_switchSelectedMenuItemTo newItem
+            onSelected()
+            return false
+      newItem.addClass @_settingsItemLinkClass
 
-        return ($ '<li></li>').append newItem
+      return ($ '<li></li>').append newItem
 
     _switchSelectedMenuItemTo: (newSelectedItem) ->
       selectedClass = 'selected'
@@ -465,17 +462,19 @@
       for opt in options
         addOption opt
 
+      self = @
+
       return {
         renderTo: (container) -> container.append dropdownContents
         getValue: -> currentValue
         setValue: window.setValue = (newValue) ->
 
           #emulate human pressing on buttons to trigger github UI logic automatically;
-          dropdownOpenButton = dropdownContents.find ".#{githubUtils._dropdownOpenButtonClass}"
+          dropdownOpenButton = dropdownContents.find ".#{self._dropdownOpenButtonClass}"
           dropdownOpenButton.click()
 
           #hide menu to avoid blinking when it will be showed automatically
-          menuContents = dropdownContents.find ".#{githubUtils._dropdownMenuContentsClass}"
+          menuContents = dropdownContents.find ".#{self._dropdownMenuContentsClass}"
           menuContents.hide()
 
           setTimeout ( ->
