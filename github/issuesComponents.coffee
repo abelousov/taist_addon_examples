@@ -122,7 +122,7 @@
       @_widget = $ @_getWidgetTemplate()
       nextWidget.prepend @_widget
 
-      @_componentsDropdown = createComponentsDropdown storage.componentRequired()
+      @_componentsDropdown = componentsDropdown.create 'plain', false
       @_componentsDropdown.renderTo @_widget.find '.dropdownContainer'
 
     _addCheckForRequiredComponent: ->
@@ -138,9 +138,9 @@
         openWidgetButton = assigneeWidget.find ".octicon-gear"
         openWidgetButton.click()
 
-        findDropdown = -> (assigneeWidget.find '.select-menu-modal-holder')
+        findAssigneeDropdown = -> (assigneeWidget.find '.select-menu-modal-holder')
 
-        utils.wait.once (-> findDropdown().length > 0), ->
+        utils.wait.once (-> findAssigneeDropdown().length > 0), ->
           component = storage.getComponent componentId
           responsible = component?.responsible ? ''
           responsibleRadioButton = assigneeWidget.find """input[type="radio"][value="#{responsible}"]"""
@@ -175,31 +175,58 @@
         </span>
       """
 
+  componentsDropdown =
+    _emptyComponentValue: 'NOT_SET'
+    create: (type, preserveEmptyOption) ->
+      concreteDropdown = @_dropdownImplementations[type]
+      concreteDropdown.create @_getComponentOptions()
 
-  createComponentsDropdown = (required) ->
-    emptyComponentId = 'NOT_SET'
-    components = [{id: emptyComponentId, name: '---'}].concat storage.getComponents()
-    componentOptionsArray = ("""<option value="#{component.id}">#{component.name}</option>""" for component in components)
-    dropdownContents = $ """<select class="componentSelectDropdown">#{componentOptionsArray}</select>"""
+      return @_getDropdownWrapper concreteDropdown, preserveEmptyOption
 
-    return {
-      renderTo: (container) -> container.append dropdownContents
+    _getComponentOptions: ->
+      componentOptions = ({value: comp.id, name: comp.name} for comp in storage.getComponents())
+      componentOptions.unshift {value: @_emptyComponentValue, name: '---------------'}
+
+      return componentOptions
+
+    _getDropdownWrapper: (dropdown, preserveEmptyOption) ->
+      renderTo: (container) -> dropdown.renderTo container
       getSelectedComponent: ->
-        if (selectedValue = dropdownContents.val()) is emptyComponentId
+        if (selectedValue = dropdown.getValue()) is componentsDropdown._emptyComponentValue
           null
         else
           selectedValue
+
       setSelectedComponent: (componentId) ->
-        dropdownContents.val componentId ? emptyComponentId
+        dropdown.setValue componentId ? componentsDropdown._emptyComponentValue
 
-        #if component is required and set, empty option is not needed
-        if required and componentId?
-          (dropdownContents.find """[value="#{emptyComponentId}"]""").remove()
+        #if component is required and set, empty option will be removed unless opposite is set
+        if storage.componentRequired() and not preserveEmptyOption and componentId?
+          dropdown.removeOption componentsDropdown._emptyComponentValue
 
-      onChange: (handler) ->
-        dropdownContents.change =>
-          handler @getSelectedComponent()
-    }
+      onChange: (handler) -> dropdown.onChange =>
+        handler @getSelectedComponent()
+
+    _dropdownImplementations:
+      plain:
+        _plainDropdown: null
+        create: (options) ->
+          componentOptionsArray = ("""<option value="#{option.value}">#{option.name}</option>""" for option in options)
+          @_plainDropdown = $ """<select class="componentSelectDropdown">#{componentOptionsArray}</select>"""
+        renderTo: (container) -> container.append @_plainDropdown
+        getValue: -> @_plainDropdown.val()
+        setValue: (value) -> @_plainDropdown.val value
+        removeOption: (optionValue) -> (@_plainDropdown.find """[value="#{optionValue}"]""").remove()
+        onChange: (handler) -> @_plainDropdown.change handler
+
+      github:
+        _githubDropdown: null
+        create: (options) -> @_githubDropdown = githubUtils.createDropdown '', "Components", options
+        renderTo: (container) -> @_githubDropdown.renderTo container
+        getValue: -> @_githubDropdown.getValue()
+        setValue: (value) -> @_githubDropdown.setValue value
+        removeOption: (optionValue) -> @_githubDropdown.removeOption optionValue
+        onChange: (handler) -> @_githubDropdown.onChange handler
 
   editIssueForm =
     _widget: null
@@ -216,7 +243,7 @@
     _renderWidget: ->
       @_widget = $ @_widgetTemplate
       $(@_previousWidgetSelector).after @_widget
-      @_componentsDropdown = createComponentsDropdown storage.componentRequired()
+      @_componentsDropdown = componentsDropdown.create 'github', true
       @_componentsDropdown.renderTo @_widget.find '.dropdownContainer'
 
     _setCurrentComponent: (callback) ->
@@ -304,7 +331,6 @@
 
     assignComponentIfTaskJustCreated: (taskId, callback) ->
       @_getComponentForNewTask (componentId) =>
-        utils.log 'componentId: ', {componentId}
         if componentId?
           @assignComponentToTask taskId, componentId, =>
             @_deleteComponentForNewTask ->
@@ -338,20 +364,19 @@
       @_widget = $ @_widgetTemplate
 
       #always show option for empty component to reset filter
-      @_componentsDropdown = createComponentsDropdown false
+      @_componentsDropdown = componentsDropdown.create 'github', true
       @_componentsDropdown.renderTo @_widget.find '.dropdownContainer'
+
+      sortingSelect.before @_widget
+
       @_componentsDropdown.setSelectedComponent @_currentComponent
 
       @_componentsDropdown.onChange (selectedComponent) =>
         @_currentComponent = selectedComponent
         @_filterIssuesByComponent()
 
-      sortingSelect.before @_widget
-
-    _widgetTemplate: """<span class="componentFilterWidget"></
-        <label>Component: </label><span class="dropdownContainer"></span>
+    _widgetTemplate: """<span class="componentFilterWidget"><span class="dropdownContainer"></span>
       </span>"""
-
 
     _filterIssuesByComponent: ->
       for issueDOM in ($ '.issue-list-item')
@@ -417,52 +442,84 @@
       </div>
 """
 
-    createDropdown: ->
-      dropdownTemplate = """
-<div class="select-menu js-issues-sort js-menu-container js-select-menu">
-  <span class="minibutton select-menu-button js-menu-target" role="button" tabindex="0" aria-haspopup="true">
-    <i>Sort:</i>
-    <span class="js-select-button">Newest</span>
+    createDropdown: (caption, listCaption, options)->
+      dropdownContents = $ @_createDropdownFromTemplate caption, listCaption
+      currentValue = null
+      changeHandler = null
+
+      itemsByValues = {}
+
+      itemsList = dropdownContents.find '.select-menu-list'
+
+      addOption = (option) =>
+        dropdownItem = @_createDropdownItemFromTemplate option.name
+        dropdownItem.click ->
+          currentValue = option.value
+
+          if changeHandler?
+            changeHandler()
+
+        itemsByValues[option.value] = dropdownItem
+        itemsList.append dropdownItem
+
+      for opt in options
+        addOption opt
+
+      return {
+        renderTo: (container) -> container.append dropdownContents
+        getValue: -> currentValue
+        setValue: window.setValue = (newValue) ->
+
+          #emulate human pressing on buttons to trigger github UI logic automatically;
+          dropdownOpenButton = dropdownContents.find ".#{githubUtils._dropdownOpenButtonClass}"
+          dropdownOpenButton.click()
+
+          #hide menu to avoid blinking when it will be showed automatically
+          menuContents = dropdownContents.find ".#{githubUtils._dropdownMenuContentsClass}"
+          menuContents.hide()
+
+          setTimeout ( ->
+            itemsByValues[newValue].click()
+            menuContents.show()
+          ), 0
+
+        onChange: (handler) ->
+          changeHandler = => handler @getValue()
+
+        addOption
+        removeOption: (value) -> itemsByValues[value].remove()
+      }
+
+    _dropdownOpenButtonClass: 'minibutton'
+    _dropdownMenuContentsClass: 'select-menu-modal'
+
+    _createDropdownFromTemplate: (caption, listCaption) -> """
+<div class="select-menu js-menu-container js-select-menu">
+  <span class="#{@_dropdownOpenButtonClass} select-menu-button js-menu-target" role="button" tabindex="0" aria-haspopup="true">
+    <i>#{caption}</i>
+    <span class="js-select-button"></span>
   </span>
 
   <div class="select-menu-modal-holder js-menu-content js-navigation-container" aria-hidden="true">
 
     <div class="select-menu-modal">
       <div class="select-menu-header">
-        <span class="select-menu-title">Sort options</span>
+        <span class="select-menu-title">#{listCaption}</span>
         <span class="octicon octicon-remove-close js-menu-close"></span>
       </div> <!-- /.select-menu-header -->
 
       <div class="select-menu-list">
-        <a class="select-menu-item js-navigation-open js-navigation-item selected" href="/abelousov/issuesTest/issues?direction=desc&amp;page=1&amp;sort=created&amp;state=open">
-          <span class="select-menu-item-icon octicon octicon-check"></span>
-          <span class="select-menu-item-text js-select-button-text">Newest</span>
-        </a> <!-- /.select-menu-list -->
-        <a class="select-menu-item js-navigation-open js-navigation-item " href="/abelousov/issuesTest/issues?direction=asc&amp;page=1&amp;sort=created&amp;state=open">
-          <span class="select-menu-item-icon octicon octicon-check"></span>
-          <span class="select-menu-item-text js-select-button-text">Oldest</span>
-        </a> <!-- /.select-menu-list -->
-        <a class="select-menu-item js-navigation-open js-navigation-item " href="/abelousov/issuesTest/issues?direction=desc&amp;page=1&amp;sort=updated&amp;state=open">
-          <span class="select-menu-item-icon octicon octicon-check"></span>
-          <span class="select-menu-item-text js-select-button-text">Recently updated</span>
-        </a> <!-- /.select-menu-list -->
-        <a class="select-menu-item js-navigation-open js-navigation-item " href="/abelousov/issuesTest/issues?direction=asc&amp;page=1&amp;sort=updated&amp;state=open">
-          <span class="select-menu-item-icon octicon octicon-check"></span>
-          <span class="select-menu-item-text js-select-button-text">Least recently updated</span>
-        </a> <!-- /.select-menu-list -->
-        <a class="select-menu-item js-navigation-open js-navigation-item " href="/abelousov/issuesTest/issues?direction=desc&amp;page=1&amp;sort=comments&amp;state=open">
-          <span class="select-menu-item-icon octicon octicon-check"></span>
-          <span class="select-menu-item-text js-select-button-text">Most commented</span>
-        </a> <!-- /.select-menu-list -->
-        <a class="select-menu-item js-navigation-open js-navigation-item " href="/abelousov/issuesTest/issues?direction=asc&amp;page=1&amp;sort=comments&amp;state=open">
-          <span class="select-menu-item-icon octicon octicon-check"></span>
-          <span class="select-menu-item-text js-select-button-text">Least commented</span>
-        </a> <!-- /.select-menu-list -->
       </div>
 
     </div> <!-- /.select-menu-modal -->
   </div> <!-- /.select-menu-modal-holder -->
 </div>
+"""
+    _createDropdownItemFromTemplate: (name) -> $ """
+        <a class="select-menu-item js-navigation-open js-navigation-item">
+          <span class="select-menu-item-icon octicon octicon-check"></span>
+          <span class="select-menu-item-text js-select-button-text">#{name}</span>
+        </a>
 """
 
   return {start}
