@@ -23,40 +23,45 @@
     });
   };
   settingsForm = {
-    _editor: null,
+    _settingsControl: null,
     _componentsTextArea: null,
     _enabledCheckbox: null,
     _requiredCheckbox: null,
+    _saveResults: null,
     renderOnSettingsPageDisplay: function() {
-      return githubUtils.addSettingsItemWhenSettingsPageRenders('Components', (function(_this) {
+      return githubUtils.addSettingsItem('Components', (function(_this) {
         return function() {
-          return _this._renderEditor();
+          return {
+            headerControls: _this._createHeaderCheckboxes(),
+            innerContents: _this._createInnerContents()
+          };
         };
       })(this));
     },
-    _renderEditor: function() {
-      var saveButton, sel, _ref;
-      this._editor = $(this._editorTemplate);
-      _ref = (function() {
-        var _i, _len, _ref, _results;
-        _ref = ['textarea', '.componentsEnabled', '.componentRequired', 'button'];
-        _results = [];
-        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-          sel = _ref[_i];
-          _results.push(this._editor.find(sel));
-        }
-        return _results;
-      }).call(this), this._componentsTextArea = _ref[0], this._enabledCheckbox = _ref[1], this._requiredCheckbox = _ref[2], saveButton = _ref[3];
+    _createHeaderCheckboxes: function() {
+      this._enabledCheckbox = this._createHeaderCheckbox("componentsEnabled", storage.componentsEnabled());
+      this._requiredCheckbox = this._createHeaderCheckbox("componentRequired", storage.componentRequired());
+      return [this._wrapChecboxInLabel(this._enabledCheckbox, "Enabled"), this._wrapChecboxInLabel(this._requiredCheckbox, "Required in task")];
+    },
+    _createInnerContents: function() {
+      var saveButton;
+      this._componentsTextArea = $("<textarea rows=\"20\" class=\"componentsEditTextarea\"></textarea>");
       this._componentsTextArea.val(this._getComponentsValueToDisplay());
-      this._enabledCheckbox.prop('checked', storage.componentsEnabled());
-      this._requiredCheckbox.prop('checked', storage.componentRequired());
+      saveButton = $("<button type=\"submit\" class=\"button primary componentsSaveButton\">Save</button>");
       saveButton.click((function(_this) {
-        return function(e) {
-          e.preventDefault();
-          return _this._saveComponentsData();
+        return function() {
+          _this._saveComponentsData();
+          return false;
         };
       })(this));
-      return this._editor;
+      this._saveResults = $(this._saveResultsTemplate);
+      return [this._componentsTextArea, saveButton, this._saveResults];
+    },
+    _createHeaderCheckbox: function(className, checked) {
+      return ($("<input class=\"componentSettingsCheckbox " + className + "\" type=\"checkbox\">")).prop('checked', checked);
+    },
+    _wrapChecboxInLabel: function(checkbox, labelText) {
+      return ($("<label>" + labelText + "</label>")).prepend(checkbox);
     },
     _getComponentsValueToDisplay: function() {
       var comp, componentStrings;
@@ -85,23 +90,20 @@
         };
       })(this));
     },
+    _saveResultsTemplate: "<span>\n  <span id=\"componentSaveResult\"></span>\n  <span id=\"componentSaveResultContents\"></span>\n</span>",
     _displaySaveResult: function(err) {
       var color, message, success, text, _ref;
       success = err == null;
       _ref = success ? ['Saved successfully', 'green'] : ['Error: ', 'red'], text = _ref[0], color = _ref[1];
-      (this._editor.find('#componentSaveResult')).css('color', color).text(text);
+      (this._saveResults.find('#componentSaveResult')).css('color', color).text(text);
       message = success ? '' : err.message + ' <a id="componentsJsonExample" href="#">Show example</a>';
-      console.log({
-        err: err
-      });
-      console.log('message: ', message);
-      (this._editor.find('#componentSaveResultContents')).html(message);
+      (this._saveResults.find('#componentSaveResultContents')).html(message);
       if (!success) {
         return this._displayJsonExample();
       }
     },
     _displayJsonExample: function() {
-      return (this._editor.find('#componentsJsonExample')).click((function(_this) {
+      return (this._saveResults.find('#componentsJsonExample')).click((function(_this) {
         return function() {
           _this._componentsTextArea.val(_this._getComponentsExample() + _this._componentsTextArea.val());
           return false;
@@ -110,8 +112,7 @@
     },
     _getComponentsExample: function() {
       return '=== Example:\n1,Authorization,fortknoxguard\n2,User manual,docsguru\n=== End of example\n\n';
-    },
-    _editorTemplate: '<div class="tab-content"> <div class="boxed-group"> <span class="boxed-group boxed-group-action"> <label><input class="componentSettingsCheckbox componentsEnabled" type="checkbox">Enabled</label> <label><input class="componentSettingsCheckbox componentRequired" type="checkbox">Required in task</label> </span> <h3>Edit components</h3> <div class="boxed-group-inner"> <textarea rows="20" class="componentsEditTextarea"></textarea> <button type="submit" class="button primary componentsSaveButton">Save</button> <span> <span id="componentSaveResult"></span> <span id="componentSaveResultContents"></span> </span> </div> </div> </div>'
+    }
   };
   createIssueForm = {
     _widget: null,
@@ -459,34 +460,64 @@
     }
   };
   githubUtils = {
-    addSettingsItemWhenSettingsPageRenders: function(itemName, contentsRenderer) {
-      var _formatLinkAsSelected;
-      utils.wait.elementRender('#repo-settings .menu', function(menuContainer) {
-        var newLink;
-        newLink = $("<a href=\"#\">" + itemName + "</a>");
-        menuContainer.append(($('<li></li>')).append(newLink));
-        return newLink.click(function() {
-          var contentsContainer;
-          _formatLinkAsSelected(newLink);
-          contentsContainer = $('.repo-settings-content');
-          contentsContainer.empty();
-          contentsContainer.append(contentsRenderer());
-          return false;
+    _settingsItemLinkClass: 'js-selected-navigation-item',
+    _settingsTabContainerSelector: '.repo-settings-content',
+    _settingsMenuSelector: '#repo-settings .menu',
+    addSettingsItem: function(itemName, createTabContents) {
+      return utils.wait.elementRender(this._settingsMenuSelector, (function(_this) {
+        return function(menu) {
+          var contents, headerControl, menuItem, menuItemClick, newSettingsTab, tabContents, _i, _j, _len, _len1, _ref, _ref1, _results;
+          newSettingsTab = _this._createSettingsItemTab(itemName);
+          menuItemClick = function() {
+            return ($(_this._settingsTabContainerSelector)).empty().append(newSettingsTab);
+          };
+          menuItem = _this._createSettingsMenuItem(itemName, menuItemClick);
+          menu.append(menuItem);
+          tabContents = createTabContents();
+          _ref = tabContents.headerControls;
+          for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+            headerControl = _ref[_i];
+            (newSettingsTab.find('.boxed-group.boxed-group-action')).append(headerControl);
+          }
+          _ref1 = tabContents.innerContents;
+          _results = [];
+          for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
+            contents = _ref1[_j];
+            _results.push((newSettingsTab.find('.boxed-group-inner')).append(contents));
+          }
+          return _results;
+        };
+      })(this));
+    },
+    _createSettingsMenuItem: function(itemName, onSelected) {
+      return (function() {
+        var newItem;
+        newItem = $("<a></a>", {
+          href: "#",
+          text: itemName,
+          click: function() {
+            githubUtils._switchSelectedMenuItemTo(newItem);
+            onSelected();
+            return false;
+          }
         });
-      });
-      return _formatLinkAsSelected = function(newLink) {
-        var previousSelectedLink, property, selPropertyValue, selectedFormatProperties, _i, _len, _results;
-        selectedFormatProperties = ['font-weight', 'border-left', 'color'];
-        previousSelectedLink = $('.js-selected-navigation-item.selected');
-        _results = [];
-        for (_i = 0, _len = selectedFormatProperties.length; _i < _len; _i++) {
-          property = selectedFormatProperties[_i];
-          selPropertyValue = previousSelectedLink.css(property);
-          previousSelectedLink.css(property, newLink.css(property));
-          _results.push(newLink.css(property, selPropertyValue));
-        }
-        return _results;
-      };
+        newItem.addClass(this._settingsItemLinkClass);
+        return ($('<li></li>')).append(newItem);
+      })();
+    },
+    _switchSelectedMenuItemTo: function(newSelectedItem) {
+      var previousSelectedLink, selectedClass;
+      selectedClass = 'selected';
+      previousSelectedLink = $("." + this._settingsItemLinkClass + "." + selectedClass);
+      newSelectedItem.addClass(selectedClass);
+      return previousSelectedLink.removeClass(selectedClass);
+    },
+    _createSettingsItemTab: function(itemName) {
+      return $("<div class=\"tab-content\">\n    <div class=\"boxed-group\">\n      <span class=\"boxed-group boxed-group-action\">\n      </span>\n      <h3>" + itemName + "</h3>\n      <div class=\"boxed-group-inner\">\n      </div>\n    </div>\n</div>");
+    },
+    createDropdown: function() {
+      var dropdownTemplate;
+      return dropdownTemplate = "<div class=\"select-menu js-issues-sort js-menu-container js-select-menu\">\n  <span class=\"minibutton select-menu-button js-menu-target\" role=\"button\" tabindex=\"0\" aria-haspopup=\"true\">\n    <i>Sort:</i>\n    <span class=\"js-select-button\">Newest</span>\n  </span>\n\n  <div class=\"select-menu-modal-holder js-menu-content js-navigation-container\" aria-hidden=\"true\">\n\n    <div class=\"select-menu-modal\">\n      <div class=\"select-menu-header\">\n        <span class=\"select-menu-title\">Sort options</span>\n        <span class=\"octicon octicon-remove-close js-menu-close\"></span>\n      </div> <!-- /.select-menu-header -->\n\n      <div class=\"select-menu-list\">\n        <a class=\"select-menu-item js-navigation-open js-navigation-item selected\" href=\"/abelousov/issuesTest/issues?direction=desc&amp;page=1&amp;sort=created&amp;state=open\">\n          <span class=\"select-menu-item-icon octicon octicon-check\"></span>\n          <span class=\"select-menu-item-text js-select-button-text\">Newest</span>\n        </a> <!-- /.select-menu-list -->\n        <a class=\"select-menu-item js-navigation-open js-navigation-item \" href=\"/abelousov/issuesTest/issues?direction=asc&amp;page=1&amp;sort=created&amp;state=open\">\n          <span class=\"select-menu-item-icon octicon octicon-check\"></span>\n          <span class=\"select-menu-item-text js-select-button-text\">Oldest</span>\n        </a> <!-- /.select-menu-list -->\n        <a class=\"select-menu-item js-navigation-open js-navigation-item \" href=\"/abelousov/issuesTest/issues?direction=desc&amp;page=1&amp;sort=updated&amp;state=open\">\n          <span class=\"select-menu-item-icon octicon octicon-check\"></span>\n          <span class=\"select-menu-item-text js-select-button-text\">Recently updated</span>\n        </a> <!-- /.select-menu-list -->\n        <a class=\"select-menu-item js-navigation-open js-navigation-item \" href=\"/abelousov/issuesTest/issues?direction=asc&amp;page=1&amp;sort=updated&amp;state=open\">\n          <span class=\"select-menu-item-icon octicon octicon-check\"></span>\n          <span class=\"select-menu-item-text js-select-button-text\">Least recently updated</span>\n        </a> <!-- /.select-menu-list -->\n        <a class=\"select-menu-item js-navigation-open js-navigation-item \" href=\"/abelousov/issuesTest/issues?direction=desc&amp;page=1&amp;sort=comments&amp;state=open\">\n          <span class=\"select-menu-item-icon octicon octicon-check\"></span>\n          <span class=\"select-menu-item-text js-select-button-text\">Most commented</span>\n        </a> <!-- /.select-menu-list -->\n        <a class=\"select-menu-item js-navigation-open js-navigation-item \" href=\"/abelousov/issuesTest/issues?direction=asc&amp;page=1&amp;sort=comments&amp;state=open\">\n          <span class=\"select-menu-item-icon octicon octicon-check\"></span>\n          <span class=\"select-menu-item-text js-select-button-text\">Least commented</span>\n        </a> <!-- /.select-menu-list -->\n      </div>\n\n    </div> <!-- /.select-menu-modal -->\n  </div> <!-- /.select-menu-modal-holder -->\n</div>";
     }
   };
   return {

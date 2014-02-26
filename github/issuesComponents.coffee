@@ -17,29 +17,44 @@
         currentPage?.render()
 
   settingsForm =
-    _editor: null
+    _settingsControl: null
     _componentsTextArea: null
     _enabledCheckbox: null
     _requiredCheckbox: null
+    _saveResults: null
+
     renderOnSettingsPageDisplay: ->
-      githubUtils.addSettingsItemWhenSettingsPageRenders 'Components', => @_renderEditor()
+      githubUtils.addSettingsItem 'Components', =>
+        headerControls: @_createHeaderCheckboxes()
+        innerContents: @_createInnerContents()
 
-    _renderEditor: ->
-      @_editor = $ @_editorTemplate
+    _createHeaderCheckboxes: ->
+      @_enabledCheckbox = @_createHeaderCheckbox "componentsEnabled", storage.componentsEnabled()
+      @_requiredCheckbox = @_createHeaderCheckbox "componentRequired", storage.componentRequired()
 
-      [@_componentsTextArea, @_enabledCheckbox, @_requiredCheckbox, saveButton] = (
-        @_editor.find sel for sel in ['textarea', '.componentsEnabled', '.componentRequired', 'button']
-      )
+      return [
+        (@_wrapChecboxInLabel @_enabledCheckbox, "Enabled"),
+        (@_wrapChecboxInLabel @_requiredCheckbox, "Required in task")
+      ]
 
+    _createInnerContents: ->
+      @_componentsTextArea = $ """<textarea rows="20" class="componentsEditTextarea"></textarea>"""
       @_componentsTextArea.val @_getComponentsValueToDisplay()
-      @_enabledCheckbox.prop 'checked', storage.componentsEnabled()
-      @_requiredCheckbox.prop 'checked', storage.componentRequired()
 
-      saveButton.click (e) =>
-        e.preventDefault()
+      saveButton = $ """<button type="submit" class="button primary componentsSaveButton">Save</button>"""
+      saveButton.click =>
         @_saveComponentsData()
+        return false
 
-      return @_editor
+      @_saveResults = $ @_saveResultsTemplate
+
+      return [@_componentsTextArea, saveButton, @_saveResults]
+
+    _createHeaderCheckbox: (className, checked) ->
+      return ($ """<input class="componentSettingsCheckbox #{className}" type="checkbox">""").prop('checked', checked)
+
+    _wrapChecboxInLabel: (checkbox, labelText) ->
+      return ($ """<label>#{labelText}</label>""").prepend checkbox
 
     _getComponentsValueToDisplay: ->
       componentStrings = (([comp.id,comp.name,comp.responsible].join ',') for comp in storage.getComponents())
@@ -53,6 +68,13 @@
       storage.saveSettings settingsToSave, (err) =>
         @_displaySaveResult err
 
+    _saveResultsTemplate: """
+        <span>
+          <span id="componentSaveResult"></span>
+          <span id="componentSaveResultContents"></span>
+        </span>
+      """
+
     _displaySaveResult: (err) ->
       success = not err?
       [text, color] =
@@ -61,50 +83,25 @@
         else
           ['Error: ', 'red']
 
-      (@_editor.find '#componentSaveResult').css('color', color).text text
+      (@_saveResults.find '#componentSaveResult').css('color', color).text text
 
       message =
         if success
           ''
         else
           err.message + ' <a id="componentsJsonExample" href="#">Show example</a>'
-
-      console.log {err}
-      console.log 'message: ', message
-
-
-      (@_editor.find '#componentSaveResultContents').html message
+      (@_saveResults.find '#componentSaveResultContents').html message
 
       if not success
         @_displayJsonExample()
 
     _displayJsonExample: ->
-      (@_editor.find '#componentsJsonExample').click =>
+      (@_saveResults.find '#componentsJsonExample').click =>
         @_componentsTextArea.val @_getComponentsExample() + @_componentsTextArea.val()
         return false
 
     _getComponentsExample: ->
       '=== Example:\n1,Authorization,fortknoxguard\n2,User manual,docsguru\n=== End of example\n\n'
-
-    _editorTemplate: '
-      <div class="tab-content">
-          <div class="boxed-group">
-            <span class="boxed-group boxed-group-action">
-              <label><input class="componentSettingsCheckbox componentsEnabled" type="checkbox">Enabled</label>
-              <label><input class="componentSettingsCheckbox componentRequired" type="checkbox">Required in task</label>
-            </span>
-            <h3>Edit components</h3>
-            <div class="boxed-group-inner">
-              <textarea rows="20" class="componentsEditTextarea"></textarea>
-              <button type="submit" class="button primary componentsSaveButton">Save</button>
-              <span>
-                <span id="componentSaveResult"></span>
-                <span id="componentSaveResultContents"></span>
-                </span>
-            </div>
-          </div>
-      </div>
-          '
 
   createIssueForm =
     _widget: null
@@ -367,27 +364,105 @@
           jqIssue.show()
 
   githubUtils =
-    addSettingsItemWhenSettingsPageRenders: (itemName, contentsRenderer) ->
-      utils.wait.elementRender '#repo-settings .menu', (menuContainer) ->
-        newLink = $ "<a href=\"#\">#{itemName}</a>"
-        menuContainer.append (($ '<li></li>').append newLink)
+    _settingsItemLinkClass: 'js-selected-navigation-item'
+    _settingsTabContainerSelector: '.repo-settings-content'
+    _settingsMenuSelector: '#repo-settings .menu'
 
-        newLink.click ->
-          _formatLinkAsSelected newLink
-          contentsContainer = $ '.repo-settings-content'
-          contentsContainer.empty()
+    addSettingsItem: (itemName, createTabContents) ->
+      utils.wait.elementRender @_settingsMenuSelector, (menu) =>
+        newSettingsTab = @_createSettingsItemTab itemName
+        menuItemClick = =>
+          ($ @_settingsTabContainerSelector).empty().append newSettingsTab
 
-          contentsContainer.append contentsRenderer()
-          return false
+        menuItem = @_createSettingsMenuItem itemName, menuItemClick
+        menu.append menuItem
 
-      _formatLinkAsSelected = (newLink) ->
-        selectedFormatProperties = ['font-weight', 'border-left', 'color']
-        previousSelectedLink = $ ('.js-selected-navigation-item.selected')
+        tabContents = createTabContents()
 
-        for property in selectedFormatProperties
-          selPropertyValue = previousSelectedLink.css property
+        for headerControl in tabContents.headerControls
+          (newSettingsTab.find '.boxed-group.boxed-group-action').append headerControl
 
-          previousSelectedLink.css property, (newLink.css property)
-          newLink.css property, selPropertyValue
+        for contents in tabContents.innerContents
+          (newSettingsTab.find '.boxed-group-inner').append contents
+
+    _createSettingsMenuItem: (itemName, onSelected) ->
+      do ->
+        newItem = $ "<a></a>",
+            href: "#",
+            text: itemName
+            click: ->
+              githubUtils._switchSelectedMenuItemTo newItem
+              onSelected()
+              return false
+        newItem.addClass @_settingsItemLinkClass
+
+        return ($ '<li></li>').append newItem
+
+    _switchSelectedMenuItemTo: (newSelectedItem) ->
+      selectedClass = 'selected'
+      previousSelectedLink = $ ".#{@_settingsItemLinkClass}.#{selectedClass}"
+
+      newSelectedItem.addClass selectedClass
+      previousSelectedLink.removeClass selectedClass
+
+    _createSettingsItemTab: (itemName) -> $ """
+      <div class="tab-content">
+          <div class="boxed-group">
+            <span class="boxed-group boxed-group-action">
+            </span>
+            <h3>#{itemName}</h3>
+            <div class="boxed-group-inner">
+            </div>
+          </div>
+      </div>
+"""
+
+    createDropdown: ->
+      dropdownTemplate = """
+<div class="select-menu js-issues-sort js-menu-container js-select-menu">
+  <span class="minibutton select-menu-button js-menu-target" role="button" tabindex="0" aria-haspopup="true">
+    <i>Sort:</i>
+    <span class="js-select-button">Newest</span>
+  </span>
+
+  <div class="select-menu-modal-holder js-menu-content js-navigation-container" aria-hidden="true">
+
+    <div class="select-menu-modal">
+      <div class="select-menu-header">
+        <span class="select-menu-title">Sort options</span>
+        <span class="octicon octicon-remove-close js-menu-close"></span>
+      </div> <!-- /.select-menu-header -->
+
+      <div class="select-menu-list">
+        <a class="select-menu-item js-navigation-open js-navigation-item selected" href="/abelousov/issuesTest/issues?direction=desc&amp;page=1&amp;sort=created&amp;state=open">
+          <span class="select-menu-item-icon octicon octicon-check"></span>
+          <span class="select-menu-item-text js-select-button-text">Newest</span>
+        </a> <!-- /.select-menu-list -->
+        <a class="select-menu-item js-navigation-open js-navigation-item " href="/abelousov/issuesTest/issues?direction=asc&amp;page=1&amp;sort=created&amp;state=open">
+          <span class="select-menu-item-icon octicon octicon-check"></span>
+          <span class="select-menu-item-text js-select-button-text">Oldest</span>
+        </a> <!-- /.select-menu-list -->
+        <a class="select-menu-item js-navigation-open js-navigation-item " href="/abelousov/issuesTest/issues?direction=desc&amp;page=1&amp;sort=updated&amp;state=open">
+          <span class="select-menu-item-icon octicon octicon-check"></span>
+          <span class="select-menu-item-text js-select-button-text">Recently updated</span>
+        </a> <!-- /.select-menu-list -->
+        <a class="select-menu-item js-navigation-open js-navigation-item " href="/abelousov/issuesTest/issues?direction=asc&amp;page=1&amp;sort=updated&amp;state=open">
+          <span class="select-menu-item-icon octicon octicon-check"></span>
+          <span class="select-menu-item-text js-select-button-text">Least recently updated</span>
+        </a> <!-- /.select-menu-list -->
+        <a class="select-menu-item js-navigation-open js-navigation-item " href="/abelousov/issuesTest/issues?direction=desc&amp;page=1&amp;sort=comments&amp;state=open">
+          <span class="select-menu-item-icon octicon octicon-check"></span>
+          <span class="select-menu-item-text js-select-button-text">Most commented</span>
+        </a> <!-- /.select-menu-list -->
+        <a class="select-menu-item js-navigation-open js-navigation-item " href="/abelousov/issuesTest/issues?direction=asc&amp;page=1&amp;sort=comments&amp;state=open">
+          <span class="select-menu-item-icon octicon octicon-check"></span>
+          <span class="select-menu-item-text js-select-button-text">Least commented</span>
+        </a> <!-- /.select-menu-list -->
+      </div>
+
+    </div> <!-- /.select-menu-modal -->
+  </div> <!-- /.select-menu-modal-holder -->
+</div>
+"""
 
   return {start}
