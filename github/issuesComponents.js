@@ -135,7 +135,10 @@
     _renderWidget: function(nextWidget) {
       this._widget = $(this._getWidgetTemplate());
       nextWidget.prepend(this._widget);
-      this._componentsDropdown = componentsDropdown.create('plain', false);
+      this._componentsDropdown = componentsDropdown.create('plain', {
+        emptyComponentName: '--',
+        preserverEmptyComponent: false
+      });
       return this._componentsDropdown.renderTo(this._widget.find('.dropdownContainer'));
     },
     _addCheckForRequiredComponent: function() {
@@ -201,15 +204,15 @@
   };
   componentsDropdown = {
     _emptyComponentValue: 'NOT_SET',
-    create: function(type, preserveEmptyOption) {
+    create: function(type, options) {
       var concreteDropdown;
       concreteDropdown = this._dropdownImplementations[type];
-      concreteDropdown.create(this._getComponentOptions());
-      return this._getDropdownWrapper(concreteDropdown, preserveEmptyOption);
+      concreteDropdown.init(this._getComponentsList(options.emptyComponentName), options);
+      return this._getDropdownWrapper(concreteDropdown, options.preserverEmptyComponent);
     },
-    _getComponentOptions: function() {
-      var comp, componentOptions;
-      componentOptions = (function() {
+    _getComponentsList: function(emptyComponentName) {
+      var comp, componentsList;
+      componentsList = (function() {
         var _i, _len, _ref, _results;
         _ref = storage.getComponents();
         _results = [];
@@ -222,13 +225,13 @@
         }
         return _results;
       })();
-      componentOptions.unshift({
+      componentsList.unshift({
         value: this._emptyComponentValue,
-        name: '---------------'
+        name: emptyComponentName
       });
-      return componentOptions;
+      return componentsList;
     },
-    _getDropdownWrapper: function(dropdown, preserveEmptyOption) {
+    _getDropdownWrapper: function(dropdown, preserverEmptyComponent) {
       return {
         renderTo: function(container) {
           return dropdown.renderTo(container);
@@ -243,7 +246,7 @@
         },
         setSelectedComponent: function(componentId) {
           dropdown.setValue(componentId != null ? componentId : componentsDropdown._emptyComponentValue);
-          if (storage.componentRequired() && !preserveEmptyOption && (componentId != null)) {
+          if (storage.componentRequired() && !preserverEmptyComponent && (componentId != null)) {
             return dropdown.removeOption(componentsDropdown._emptyComponentValue);
           }
         },
@@ -259,13 +262,13 @@
     _dropdownImplementations: {
       plain: {
         _plainDropdown: null,
-        create: function(options) {
+        init: function(componentsList) {
           var componentOptionsArray, option;
           componentOptionsArray = (function() {
             var _i, _len, _results;
             _results = [];
-            for (_i = 0, _len = options.length; _i < _len; _i++) {
-              option = options[_i];
+            for (_i = 0, _len = componentsList.length; _i < _len; _i++) {
+              option = componentsList[_i];
               _results.push("<option value=\"" + option.value + "\">" + option.name + "</option>");
             }
             return _results;
@@ -290,8 +293,9 @@
       },
       github: {
         _githubDropdown: null,
-        create: function(options) {
-          return this._githubDropdown = githubUtils.createDropdown('', "Components", options);
+        init: function(componentsList, options) {
+          var _ref;
+          return this._githubDropdown = githubUtils.createDropdown((_ref = options.caption) != null ? _ref : '', "Components", componentsList);
         },
         renderTo: function(container) {
           return this._githubDropdown.renderTo(container);
@@ -332,7 +336,10 @@
     _renderWidget: function() {
       this._widget = $(this._widgetTemplate);
       $(this._previousWidgetSelector).after(this._widget);
-      this._componentsDropdown = componentsDropdown.create('github', true);
+      this._componentsDropdown = componentsDropdown.create('github', {
+        emptyComponentName: '-------------------',
+        preserverEmptyComponent: true
+      });
       return this._componentsDropdown.renderTo(this._widget.find('.dropdownContainer'));
     },
     _setCurrentComponent: function(callback) {
@@ -493,7 +500,11 @@
       var sortingSelect;
       sortingSelect = $('.js-issues-sort');
       this._widget = $(this._widgetTemplate);
-      this._componentsDropdown = componentsDropdown.create('github', true);
+      this._componentsDropdown = componentsDropdown.create('github', {
+        emptyComponentName: 'All',
+        preserverEmptyComponent: true,
+        caption: 'Comp.: '
+      });
       this._componentsDropdown.renderTo(this._widget.find('.dropdownContainer'));
       sortingSelect.before(this._widget);
       this._componentsDropdown.setSelectedComponent(this._currentComponent);

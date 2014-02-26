@@ -123,7 +123,10 @@
       @_widget = $ @_getWidgetTemplate()
       nextWidget.prepend @_widget
 
-      @_componentsDropdown = componentsDropdown.create 'plain', false
+      @_componentsDropdown = componentsDropdown.create 'plain',
+        emptyComponentName: '--', 
+        preserverEmptyComponent: false
+        
       @_componentsDropdown.renderTo @_widget.find '.dropdownContainer'
 
     _addCheckForRequiredComponent: ->
@@ -178,19 +181,19 @@
 
   componentsDropdown =
     _emptyComponentValue: 'NOT_SET'
-    create: (type, preserveEmptyOption) ->
+    create: (type, options) ->
       concreteDropdown = @_dropdownImplementations[type]
-      concreteDropdown.create @_getComponentOptions()
+      concreteDropdown.init (@_getComponentsList options.emptyComponentName), options
 
-      return @_getDropdownWrapper concreteDropdown, preserveEmptyOption
+      return @_getDropdownWrapper concreteDropdown, options.preserverEmptyComponent
 
-    _getComponentOptions: ->
-      componentOptions = ({value: comp.id, name: comp.name} for comp in storage.getComponents())
-      componentOptions.unshift {value: @_emptyComponentValue, name: '---------------'}
+    _getComponentsList: (emptyComponentName) ->
+      componentsList = ({value: comp.id, name: comp.name} for comp in storage.getComponents())
+      componentsList.unshift {value: @_emptyComponentValue, name: emptyComponentName}
 
-      return componentOptions
+      return componentsList
 
-    _getDropdownWrapper: (dropdown, preserveEmptyOption) ->
+    _getDropdownWrapper: (dropdown, preserverEmptyComponent) ->
       renderTo: (container) -> dropdown.renderTo container
       getSelectedComponent: ->
         if (selectedValue = dropdown.getValue()) is componentsDropdown._emptyComponentValue
@@ -202,7 +205,7 @@
         dropdown.setValue componentId ? componentsDropdown._emptyComponentValue
 
         #if component is required and set, empty option will be removed unless opposite is set
-        if storage.componentRequired() and not preserveEmptyOption and componentId?
+        if storage.componentRequired() and not preserverEmptyComponent and componentId?
           dropdown.removeOption componentsDropdown._emptyComponentValue
 
       onChange: (handler) -> dropdown.onChange =>
@@ -211,8 +214,8 @@
     _dropdownImplementations:
       plain:
         _plainDropdown: null
-        create: (options) ->
-          componentOptionsArray = ("""<option value="#{option.value}">#{option.name}</option>""" for option in options)
+        init: (componentsList) ->
+          componentOptionsArray = ("""<option value="#{option.value}">#{option.name}</option>""" for option in componentsList)
           @_plainDropdown = $ """<select class="componentSelectDropdown">#{componentOptionsArray}</select>"""
         renderTo: (container) -> container.append @_plainDropdown
         getValue: -> @_plainDropdown.val()
@@ -222,7 +225,7 @@
 
       github:
         _githubDropdown: null
-        create: (options) -> @_githubDropdown = githubUtils.createDropdown '', "Components", options
+        init: (componentsList, options) -> @_githubDropdown = githubUtils.createDropdown (options.caption ? ''), "Components", componentsList
         renderTo: (container) -> @_githubDropdown.renderTo container
         getValue: -> @_githubDropdown.getValue()
         setValue: (value) -> @_githubDropdown.setValue value
@@ -244,7 +247,10 @@
     _renderWidget: ->
       @_widget = $ @_widgetTemplate
       $(@_previousWidgetSelector).after @_widget
-      @_componentsDropdown = componentsDropdown.create 'github', true
+      @_componentsDropdown = componentsDropdown.create 'github', 
+        emptyComponentName: '-------------------', 
+        preserverEmptyComponent: true
+        
       @_componentsDropdown.renderTo @_widget.find '.dropdownContainer'
 
     _setCurrentComponent: (callback) ->
@@ -365,7 +371,10 @@
       @_widget = $ @_widgetTemplate
 
       #always show option for empty component to reset filter
-      @_componentsDropdown = componentsDropdown.create 'github', true
+      @_componentsDropdown = componentsDropdown.create 'github', 
+          emptyComponentName: 'All',
+          preserverEmptyComponent: true
+          caption: 'Comp.: '
       @_componentsDropdown.renderTo @_widget.find '.dropdownContainer'
 
       sortingSelect.before @_widget
