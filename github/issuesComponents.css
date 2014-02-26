@@ -10,9 +10,21 @@
 
 .componentSelectionWidget {
   font-weight: normal;
-  margin-left: 50px;
+  margin-right: 50px;
+}
+
+.componentFilterWidget {
+  margin-right: 20px;
 }
 
 .componentSelectDropdown {
-  width: 150px;
+}
+
+.componentRequiredWarning {
+  color: red;
+}
+
+.componentSettingsCheckbox {
+  margin-right: 5px;
+  margin-left: 20px;
 }

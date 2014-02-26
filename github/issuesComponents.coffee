@@ -4,31 +4,40 @@
   start = (utilities, entryPoint) ->
     utils = utilities
     storage.init ->
-      currentPage =
-        switch entryPoint
-          when 'settings' then settingsForm
-          when 'editIssue' then editIssueForm
-          when 'createIssue' then createIssueForm
-          when 'showIssues' then issuesList
-      currentPage.render()
+      #settingsForm can be displayed dynamically, so wait for it to render from any page
+      settingsForm.renderOnSettingsPageDisplay()
+
+      if storage.componentsEnabled() and storage.getComponents().length > 0
+        currentPage =
+          switch entryPoint
+            when 'editIssue' then editIssueForm
+            when 'createIssue' then createIssueForm
+            when 'showIssues' then issuesList
+
+        currentPage?.render()
 
   settingsForm =
     _editor: null
-    _compontentsTextArea: null
-    render: ->
-      githubUtils.addSettingsItem 'Components', @_getEditorRenderer()
+    _componentsTextArea: null
+    _enabledCheckbox: null
+    _requiredCheckbox: null
+    renderOnSettingsPageDisplay: ->
+      githubUtils.addSettingsItemWhenSettingsPageRenders 'Components', => @_renderEditor()
 
-    _getEditorRenderer: -> =>
+    _renderEditor: ->
       @_editor = $ @_editorTemplate
 
-      @_componentsTextArea = @_editor.find 'textarea'
-      saveButton = @_editor.find 'button'
+      [@_componentsTextArea, @_enabledCheckbox, @_requiredCheckbox, saveButton] = (
+        @_editor.find sel for sel in ['textarea', '.componentsEnabled', '.componentRequired', 'button']
+      )
 
       @_componentsTextArea.val @_getComponentsValueToDisplay()
+      @_enabledCheckbox.prop 'checked', storage.componentsEnabled()
+      @_requiredCheckbox.prop 'checked', storage.componentRequired()
 
       saveButton.click (e) =>
         e.preventDefault()
-        @_saveComponentsData @_editor
+        @_saveComponentsData()
 
       return @_editor
 
@@ -36,129 +45,329 @@
       componentStrings = (([comp.id,comp.name,comp.responsible].join ',') for comp in storage.getComponents())
       return componentStrings.join '\n'
 
-    _saveComponentsData: (@editor) ->
-      newComponentsData = @_componentsTextArea.val()
+    _saveComponentsData: ->
+      settingsToSave =
+        enabled: @_enabledCheckbox.prop 'checked'
+        required: @_requiredCheckbox.prop 'checked'
+        components: @_componentsTextArea.val()
+      storage.saveSettings settingsToSave, (err) =>
+        @_displaySaveResult err
 
-      storage.setComponentsData newComponentsData, (err) =>
-        if err?
-          @_displaySaveResult false, err.message + ' <a id="componentsJsonExample" href="#">Show example</a>'
-          @_renderJsonExample()
-
-        else
-          @_displaySaveResult not err?, err?.message
-
-    _displaySaveResult: (isSuccessful, message) ->
+    _displaySaveResult: (err) ->
+      success = not err?
       [text, color] =
-        if isSuccessful
+        if success
           ['Saved successfully', 'green']
         else
-          ['Error', 'red']
+          ['Error: ', 'red']
 
       (@_editor.find '#componentSaveResult').css('color', color).text text
-      (@_editor.find '#componentSaveResultContents').html (if message? then ": #{message}" else '')
 
-    _renderJsonExample: ->
+      message =
+        if success
+          ''
+        else
+          err.message + ' <a id="componentsJsonExample" href="#">Show example</a>'
+
+      console.log {err}
+      console.log 'message: ', message
+
+
+      (@_editor.find '#componentSaveResultContents').html message
+
+      if not success
+        @_displayJsonExample()
+
+    _displayJsonExample: ->
       (@_editor.find '#componentsJsonExample').click =>
         @_componentsTextArea.val @_getComponentsExample() + @_componentsTextArea.val()
         return false
 
     _getComponentsExample: ->
-      '=== Example:\n\n1,Authorization,fortknoxguard\n2,User manual,docsguru\n\n=== End of example\n\n'
+      '=== Example:\n1,Authorization,fortknoxguard\n2,User manual,docsguru\n=== End of example\n\n'
 
     _editorTemplate: '
-            <div class="tab-content">
-                <div class="boxed-group">
-                  <h3>Edit components</h3>
-                  <div class="boxed-group-inner">
-                      <textarea rows="20" class="componentsEditTextarea"></textarea>
-                      <button type="submit" class="button primary componentsSaveButton">Save</button><span><span id="componentSaveResult"></span><span id="componentSaveResultContents"></span></span>
-                      </div>
-                </div>
+      <div class="tab-content">
+          <div class="boxed-group">
+            <span class="boxed-group boxed-group-action">
+              <label><input class="componentSettingsCheckbox componentsEnabled" type="checkbox">Enabled</label>
+              <label><input class="componentSettingsCheckbox componentRequired" type="checkbox">Required in task</label>
+            </span>
+            <h3>Edit components</h3>
+            <div class="boxed-group-inner">
+              <textarea rows="20" class="componentsEditTextarea"></textarea>
+              <button type="submit" class="button primary componentsSaveButton">Save</button>
+              <span>
+                <span id="componentSaveResult"></span>
+                <span id="componentSaveResultContents"></span>
+                </span>
             </div>
+          </div>
+      </div>
           '
 
   createIssueForm =
+    _widget: null
+    _componentsDropdown: null
+    _required: -> storage.componentRequired()
+
     render: ->
-      utils.wait.elementRender '.assignee,infobar-widget', (previousWidget) =>
-        componentsWidget = @_createComponentsWidget()
-        previousWidget.after componentsWidget
+      utils.wait.elementRender '.assignee.infobar-widget', (nextWidget) =>
+        @_renderWidget nextWidget
 
-        componentsDropdown = componentsWidget.find '.componentSelectDropdown'
+        @_addCheckForRequiredComponent()
 
-        saveButton = $ '.form-actions .button.primary'
+        @_changeAssigneeOnComponentChange()
 
-        saveButton.click ->
-          selectedComponentId = componentsDropdown.val()
-          console.log 'selected component: "', selectedComponentId + '"'
-          if selectedComponentId is 'NOT_SET'
-            #TODO: display error here
-            return false
+        ($ @_saveButtonSelector).click => @_onSave()
 
+    _renderWidget: (nextWidget) ->
+      @_widget = $ @_getWidgetTemplate()
+      nextWidget.prepend @_widget
+
+      @_componentsDropdown = createComponentsDropdown storage.componentRequired()
+      @_componentsDropdown.renderTo @_widget.find '.dropdownContainer'
+
+    _addCheckForRequiredComponent: ->
+      if @_required()
+        updateRequiredWarning = => @_widget[if @_componentsDropdown.getSelectedComponent()? then 'removeClass' else 'addClass'] 'componentRequiredWarning'
+
+        @_componentsDropdown.onChange updateRequiredWarning
+        updateRequiredWarning()
+
+    _changeAssigneeOnComponentChange: ->
+      assigneeWidget = $ '.js-composer-assignee-picker'
+      @_componentsDropdown.onChange (componentId) ->
+        openWidgetButton = assigneeWidget.find ".octicon-gear"
+        openWidgetButton.click()
+
+        findDropdown = -> (assigneeWidget.find '.select-menu-modal-holder')
+
+        utils.wait.once (-> findDropdown().length > 0), ->
+          component = storage.getComponent componentId
+          responsible = component?.responsible ? ''
+          responsibleRadioButton = assigneeWidget.find """input[type="radio"][value="#{responsible}"]"""
+          if responsibleRadioButton.length > 0
+            responsibleRadioButton.click()
           else
-            storage.storeComponentForNewTask selectedComponentId, ->
- 
-    _createComponentsWidget: ->
-      componentOptionsArray = ("""<option value="#{component.id}">#{component.name}</option>""" for component in storage.getComponents())
+            (assigneeWidget.find '.js-menu-close').click()
 
-      dropdownContents = $ """<span class="componentSelectionWidget infobar-widget text"></
-        <label>Component: </label><select class="componentSelectDropdown"><option value="NOT_SET">---</option>#{componentOptionsArray}</select>
-      </span>"""
+            if component?
+              setTimeout ( ->
+                alert "Error: user '#{responsible}' specified as responsible for component '#{component.name}' not found in repository. Please check components settings"
+              ), 500
 
-      return dropdownContents
+    _onSave: ->
+      if not @_componentsDropdown.getSelectedComponent()?
+        if @_required()
+          fadeDuration = 400
+          @_widget.fadeOut(fadeDuration).fadeIn(fadeDuration)
+          return false
+
+        else
+          return
+
+      else
+        storage.storeComponentForNewTask @_componentsDropdown.getSelectedComponent(), ->
+
+    _saveButtonSelector: '.form-actions .button.primary'
+
+    _getWidgetTemplate: -> """
+        <span class="componentSelectionWidget infobar-widget text #{if @_required() then 'componentRequiredWarning'}"></
+          <label>Component: </label><span class="dropdownContainer"></span>
+        </span>
+      """
+
+
+  createComponentsDropdown = (required) ->
+    emptyComponentId = 'NOT_SET'
+    components = [{id: emptyComponentId, name: '---'}].concat storage.getComponents()
+    componentOptionsArray = ("""<option value="#{component.id}">#{component.name}</option>""" for component in components)
+    dropdownContents = $ """<select class="componentSelectDropdown">#{componentOptionsArray}</select>"""
+
+    return {
+      renderTo: (container) -> container.append dropdownContents
+      getSelectedComponent: ->
+        if (selectedValue = dropdownContents.val()) is emptyComponentId
+          null
+        else
+          selectedValue
+      setSelectedComponent: (componentId) ->
+        dropdownContents.val componentId ? emptyComponentId
+
+        #if component is required and set, empty option is not needed
+        if required and componentId?
+          (dropdownContents.find """[value="#{emptyComponentId}"]""").remove()
+
+      onChange: (handler) ->
+        dropdownContents.change =>
+          handler @getSelectedComponent()
+    }
+
+  editIssueForm =
+    _widget: null
+    _componentsDropdown: null
+    render: ->
+      @_assignComponentToFreshlyCreatedTask =>
+        @_renderWidget()
+        @_setCurrentComponent =>
+          @_listenToComponentChangeAndSave()
+
+    _assignComponentToFreshlyCreatedTask: (callback) ->
+      storage.assignComponentIfTaskJustCreated @_getCurrentTaskId(), -> callback()
+
+    _renderWidget: ->
+      @_widget = $ @_widgetTemplate
+      $(@_previousWidgetSelector).after @_widget
+      @_componentsDropdown = createComponentsDropdown storage.componentRequired()
+      @_componentsDropdown.renderTo @_widget.find '.dropdownContainer'
+
+    _setCurrentComponent: (callback) ->
+      storage.getComponentForTask @_getCurrentTaskId(), (componentId) =>
+        @_componentsDropdown.setSelectedComponent componentId
+        callback()
+
+    _listenToComponentChangeAndSave: ->
+      @_componentsDropdown.onChange (newComponentId) =>
+        storage.assignComponentToTask @_getCurrentTaskId(), newComponentId, ->
+
+    _previousWidgetSelector: '.discussion-sidebar-item.sidebar-labels'
+
+    _widgetTemplate:
+      """
+<div class="discussion-sidebar-item sidebar-milestone">
+<div class="select-menu js-menu-container js-select-menu is-showing-clear-item">
+  <h3 class="discussion-sidebar-heading">
+    Component
+  </h3>
+</div>
+
+<span class="js-milestone-infobar-item-wrapper">
+    <span class="dropdownContainer"></span>
+</span>
+</div>
+    """
+    _getCurrentTaskId: -> location.pathname.match(/\d+(?=$)/)[0]
 
   storage =
+    componentsEnabled: -> @_settings.enabled
+    componentRequired: -> @_settings.required
     _getOwnerAndRepo: -> location.pathname.match(new RegExp('^/(\\w+/\\w+)'))[1]
 
-    _components: null
+    _settings: null
 
     init: (callback) ->
       utils.companyData.setCompanyKey @_getOwnerAndRepo()
 
-      utils.companyData.get 'components', (err, componentsData) =>
-        if not err?
-          @_components = componentsData
-          callback()
+      utils.companyData.get 'settings', (settings) =>
+        @_settings = settings ? {}
+        callback()
 
-    getComponents: ->
-      @_components
+    getComponents: -> @_settings.components ? []
 
-    setComponentsData: (newComponentsValue, callback) ->
+    getComponent: (componentId) ->
+      return comp for comp in @_settings.components when comp.id is componentId
 
-      errorMessage = @_setComponentsFromString newComponentsValue
-      if errorMessage?
-        callback new Error errorMessage
+    saveSettings: (settingsToSave, callback) ->
+      @_settings.enabled = settingsToSave.enabled
+      @_settings.required = settingsToSave.required
 
-      else
-        utils.companyData.set 'components', @_components, (err) ->
-          if not err?
-            callback null
+      if @_settings.enabled
+        errorMessage = @_setComponentsFromString settingsToSave.components
+        if errorMessage?
+          callback new Error errorMessage
+          return
+
+      utils.companyData.set 'settings', @_settings, ->
+        callback()
 
     _setComponentsFromString: (componentsString) ->
       newComponents = []
       if componentsString.length is 0
-       return 'empty components list'
+        return 'empty components list'
 
-      stringNumber = 0
-      for componentString, stringNumber in componentsString.trim().split '\n'
-        componentParts = componentString.trim().split ','
+      for compString, stringNumber in componentsString.trim().split '\n'
+        componentParts = compString.trim().split ','
         if componentParts.length != 3
-          return 'string ' + (stringNumber + 1) + ': data should be a list of strings "component_id,component_name,responsible_account"'
-
+          return """string #{stringNumber + 1}: data should be a list of strings "component_id,component_name,responsible_account\""""
+        else
           newComponents.push {id: componentParts[0], name: componentParts[1], responsible: componentParts[2]}
+      @_settings.components = newComponents
 
-      @_components = newComponents
-
+      return null
 
     storeComponentForNewTask: (componentId, callback) ->
-      utils.companyData.set 'componentForNewTask', componentId, (err) ->
-        if not err?
+      utils.userData.set 'componentForNewTask', componentId, -> callback()
+
+    _deleteComponentForNewTask: (callback) ->
+      utils.userData.delete 'componentForNewTask', -> callback()
+
+    _getComponentForNewTask: (callback) ->
+      utils.userData.get 'componentForNewTask', (componentId) -> callback componentId
+
+    assignComponentIfTaskJustCreated: (taskId, callback) ->
+      @_getComponentForNewTask (componentId) =>
+        utils.log 'componentId: ', {componentId}
+        if componentId?
+          @assignComponentToTask taskId, componentId, =>
+            @_deleteComponentForNewTask ->
+              callback()
+        else
           callback()
 
+    assignComponentToTask: (taskId, componentId, callback) ->
+      utils.companyData.setPart 'assignedComponents', taskId, componentId, -> callback()
+
+    getComponentForTask: (taskId, callback) ->
+      utils.companyData.getPart 'assignedComponents', taskId, (componentId) -> callback componentId
+
+    getAssignedComponents: (callback) ->
+      utils.companyData.get 'assignedComponents', (assignedComponents) -> callback assignedComponents
+
   issuesList =
-    render: -> console.log 'rendered issues list'
+    _assignedComponents: null
+    _widget: null
+    _currentComponent: null
+    render: ->
+      storage.getAssignedComponents (assignedComponents) =>
+        @_assignedComponents = assignedComponents
+
+        utils.wait.elementRender '.issues-list', =>
+          @_renderComponentFilter()
+          @_filterIssuesByComponent()
+
+    _renderComponentFilter: ->
+      sortingSelect = $ '.js-issues-sort'
+      @_widget = $ @_widgetTemplate
+
+      #always show option for empty component to reset filter
+      @_componentsDropdown = createComponentsDropdown false
+      @_componentsDropdown.renderTo @_widget.find '.dropdownContainer'
+      @_componentsDropdown.setSelectedComponent @_currentComponent
+
+      @_componentsDropdown.onChange (selectedComponent) =>
+        @_currentComponent = selectedComponent
+        @_filterIssuesByComponent()
+
+      sortingSelect.before @_widget
+
+    _widgetTemplate: """<span class="componentFilterWidget"></
+        <label>Component: </label><span class="dropdownContainer"></span>
+      </span>"""
+
+
+    _filterIssuesByComponent: ->
+      for issueDOM in ($ '.issue-list-item')
+        issueId = issueDOM.id.substring 'issue_'.length
+
+        jqIssue = $ issueDOM
+        if @_currentComponent? and @_assignedComponents[issueId] != @_currentComponent
+          jqIssue.hide()
+        else
+          jqIssue.show()
 
   githubUtils =
-    addSettingsItem: (itemName, contentsRenderer) ->
+    addSettingsItemWhenSettingsPageRenders: (itemName, contentsRenderer) ->
       utils.wait.elementRender '#repo-settings .menu', (menuContainer) ->
         newLink = $ "<a href=\"#\">#{itemName}</a>"
         menuContainer.append (($ '<li></li>').append newLink)
