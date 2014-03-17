@@ -4,6 +4,7 @@
   taistApi = null;
   start = function(TaistAPI, entryPoint) {
     taistApi = TaistAPI;
+    taistApi.haltOnError = true;
     settingsForm.renderOnSettingsPageDisplay();
     return storage.init(function() {
       var currentPage;

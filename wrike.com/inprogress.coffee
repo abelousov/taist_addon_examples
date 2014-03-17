@@ -1,9 +1,9 @@
 ->
-	utils = null
+	taistApi = null
 	inprogressTagText = "[In progress] "
 
-	start = (utilities) ->
-		utils = utilities
+	start = (_taistApi) ->
+		taistApi = _taistApi
 
 		wrikeUtils.onTaskViewRender drawInProgressCheckbox
 
@@ -107,7 +107,7 @@
 
 		waitToRender: ->
 			that = @
-			utils.aspect.after Ext.Panel, "afterRender", ->
+			taistApi.aspect.after Ext.Panel, "afterRender", ->
 				if @bodyCssClass == that._parentClass
 					that._render()
 
@@ -129,13 +129,13 @@
 		onTaskViewRender: (callback) ->
 			cb = (taskView) -> callback taskView["record"], taskView
 			taskViewClass = window.w2.folders.info.task.View
-			utils.aspect.before taskViewClass, "showRecord", ->	cb @
+			taistApi.aspect.before taskViewClass, "showRecord", ->	cb @
 
 			currentTaskView = @getCurrentTaskView()
 			if currentTaskView?
 				cb currentTaskView
 
-		onTaskChange: (callback) -> utils.aspect.after Wrike.Task, "getChanges", (-> callback @)
+		onTaskChange: (callback) -> taistApi.aspect.after Wrike.Task, "getChanges", (-> callback @)
 
 	return {start}
 

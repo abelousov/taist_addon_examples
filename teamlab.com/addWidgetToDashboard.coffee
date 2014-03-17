@@ -1,8 +1,8 @@
 ->
-	utils = null
+	taistApi = null
 
-	start = (ut) ->
-		utils = ut
+	start = (_taistApi) ->
+		taistApi = _taistApi
 
 		getOverdueTasks drawOverDueTasks
 

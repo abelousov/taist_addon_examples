@@ -1,5 +1,5 @@
 ->
-    utils = null
+    taistApi = null
     approver = null
 
     states = {
@@ -164,8 +164,8 @@
     approver = new WrikeTaskApprover()
     filters = new WrikeTaskFilters()
 
-    start = (utilities) ->
-        utils = utilities
+    start = (_taistApi) ->
+        taistApi = _taistApi
 
         style = $ wrikeConstants.common.hiddenClassCss
         $('html > head').append(style)
@@ -210,7 +210,7 @@
             listenerName = 'load'
             listenersInPrototype = $wspace.task.View.prototype.xlisteners
 
-            utils.aspect.after listenersInPrototype, listenerName, (view, task) ->
+            taistApi.aspect.after listenersInPrototype, listenerName, (view, task) ->
                 if task?
                     task.load (loadedTask) ->
                         callback loadedTask, view
@@ -228,6 +228,6 @@
                 callback currentTask, currentTaskView
 
         onTaskChange: (callback) ->
-            utils.aspect.after $wrike.record.Base.prototype, 'getChanges', (-> callback @)
+            taistApi.aspect.after $wrike.record.Base.prototype, 'getChanges', (-> callback @)
 
     {start}

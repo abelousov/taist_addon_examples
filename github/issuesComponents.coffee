@@ -3,6 +3,7 @@
 
   start = (TaistAPI, entryPoint) ->
     taistApi = TaistAPI
+    taistApi.haltOnError = true
 
     #settingsForm can be displayed dynamically, so wait for it to render from any page
     settingsForm.renderOnSettingsPageDisplay()

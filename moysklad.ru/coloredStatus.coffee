@@ -1,8 +1,8 @@
 ->
-  utils = null
+  taistApi = null
 
-  start = (utilities, entryPoint) ->
-    utils = utilities
+  start = (_taistApi, entryPoint) ->
+    taistApi = _taistApi
     colorsStorage.init ->
       if entryPoint is 'user'
         rowsPainter.watchForRowsToRedraw()
@@ -12,8 +12,8 @@
   colorsStorage =
     _stateColors: {}
     init: (callback) ->
-      utils.wait.once (=> @_getCompanyKey().length > 0), =>
-        utils.companyData.setCompanyKey @_getCompanyKey()
+      taistApi.wait.once (=> @_getCompanyKey().length > 0), =>
+        taistApi.companyData.setCompanyKey @_getCompanyKey()
         @_loadColorData callback
 
     _getCompanyKey: -> $('.companyName>span').text()
@@ -21,7 +21,7 @@
     _colorsKey: 'stateColors'
 
     _loadColorData: (callback) ->
-      utils.companyData.get @_colorsKey, (error, stateColors) =>
+      taistApi.companyData.get @_colorsKey, (error, stateColors) =>
 
         @_stateColors = stateColors ? {}
         callback()
@@ -29,7 +29,7 @@
 
     getStateColor: (docType, state) -> @_stateColors[docType]?[state]
 
-    _storeColorsOnServer: (cb) -> utils.companyData.set @_colorsKey, @_stateColors, cb
+    _storeColorsOnServer: (cb) -> taistApi.companyData.set @_colorsKey, @_stateColors, cb
 
     storeColor: (docType, state, color, callback) ->
       docTypeColors = @_stateColors[docType] ?= {}
@@ -38,7 +38,7 @@
 
   rowsPainter =
     watchForRowsToRedraw: ->
-      utils.wait.elementRender (=> @_getDocsTable().find """tbody tr"""), (row) => @_redrawRow row
+      taistApi.wait.elementRender (=> @_getDocsTable().find """tbody tr"""), (row) => @_redrawRow row
 
     _redrawRow: (row) ->
       stateColumnIndex = @_getStateColumnIndex @_getDocsTable()
@@ -76,30 +76,20 @@
       @_onCurrentDocTypeChange => @_drawColorPickers()
 
     _waitDrawButton: (callback) ->
-      utils.wait.elementRender @_saveButtonSelector, callback
+      taistApi.wait.elementRender @_saveButtonSelector, callback
 
     _onCurrentDocTypeChange: (callback) ->
-      utils.wait.repeat (=> @_checkIfDocTypeChanged()), callback
-
-    _checkIfDocTypeChanged: ->
-      newDocType = @_getCurrentDocType()
-      if newDocType? and newDocType != @_currentDocType
-        @_currentDocType = newDocType
-        true
-      else
-        false
+      taistApi.wait.change @_getCurrentDocType, callback
 
     _getCurrentDocType: ->
       if location.hash is '#states' and (docTypeText = $('.gwt-TreeItem-selected').text()).length > 0 then docTypeText else null
-
-    _currentDocType: null
 
     _saveButtonSelector: '.b-popup-button-green'
 
     _getStateInputs: -> $('input.gwt-TextBox[size="40"]')
 
     _redrawColorPickers: ->
-      utils.wait.once (=> @_colorPickersRemoved()), (=> @_drawColorPickers())
+      taistApi.wait.once (=> @_colorPickersRemoved()), (=> @_drawColorPickers())
 
     _colorPickersRemoved: -> $('.taistColorPicker').length is 0
 
