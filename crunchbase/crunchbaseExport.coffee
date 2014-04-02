@@ -62,7 +62,7 @@
     for fieldName in textValueFields
       addFieldValue fieldName, (valueCell) -> valueCell.text()
 
-    for fieldName, attrName in firstElementValueFields
+    for fieldName, attrName of firstElementValueFields
       addFieldValue fieldName, (valueCell) -> valueCell.children('a').attr attrName
 
     return fieldValues
@@ -73,7 +73,7 @@
       name: '#breadcrumbs span:last'
       funding_total: '.col1_funding_round_total .td_right2'
       employees: '#num_employees'
-      tags: '.col1_content:eq(6)'
+      tags: jQuery('a[href^="/tag/"]').parent()
     }
 
     return fieldValues

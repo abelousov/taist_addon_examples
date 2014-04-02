@@ -44,7 +44,7 @@
     });
   };
   getGeneralInfoFields = function() {
-    var addFieldValue, attrName, fieldName, fieldValues, firstElementValueFields, textValueFields, _i, _j, _len, _len1;
+    var addFieldValue, attrName, fieldName, fieldValues, firstElementValueFields, textValueFields, _i, _len;
     textValueFields = ['twitter', 'category', 'phone', 'founded', 'description'];
     firstElementValueFields = {
       'website': 'href',
@@ -74,8 +74,8 @@
         return valueCell.text();
       });
     }
-    for (attrName = _j = 0, _len1 = firstElementValueFields.length; _j < _len1; attrName = ++_j) {
-      fieldName = firstElementValueFields[attrName];
+    for (fieldName in firstElementValueFields) {
+      attrName = firstElementValueFields[fieldName];
       addFieldValue(fieldName, function(valueCell) {
         return valueCell.children('a').attr(attrName);
       });
@@ -89,7 +89,7 @@
       name: '#breadcrumbs span:last',
       funding_total: '.col1_funding_round_total .td_right2',
       employees: '#num_employees',
-      tags: '.col1_content:eq(6)'
+      tags: jQuery('a[href^="/tag/"]').parent()
     };
     for (fieldName in _ref) {
       selector = _ref[fieldName];
