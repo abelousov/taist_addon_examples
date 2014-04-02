@@ -23,12 +23,12 @@
     return window.Teamlab.getPrjTasks(null, tasksRequest);
   };
   drawOverDueTasks = function(tasks) {
-    var headerStyle, overdueTasksExist, overdueTasksUrl, task, tasksContainer, widgetContainer, _i, _len;
+    var headerColor, overdueTasksExist, overdueTasksUrl, task, tasksContainer, widgetContainer, _i, _len;
     overdueTasksUrl = "/products/projects/tasks.aspx#sortBy=deadline&sortOrder=ascending&tasks_responsible=" + (getCurrentUserId()) + "&overdue=true";
     overdueTasksExist = tasks.length > 0;
     widgetContainer = jQuery("<div style=\"text-align: left;\"></div>");
-    headerStyle = overdueTasksExist ? "color: red;" : "";
-    widgetContainer.append("<a style=\"" + headerStyle + "\" class=\"linkHeaderLightBig\" href=\"" + overdueTasksUrl + "\">Overdue tasks: </a><br/>");
+    headerColor = overdueTasksExist ? "red" : "#3498db";
+    widgetContainer.append("<a style=\"color: " + headerColor + ";\" class=\"linkHeaderLightBig\" href=\"" + overdueTasksUrl + "\">Overdue tasks: </a><br/>");
     tasksContainer = jQuery('<div style="margin-left: 40px"></div>');
     widgetContainer.append(tasksContainer);
     if (overdueTasksExist) {

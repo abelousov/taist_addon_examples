@@ -26,13 +26,13 @@
 
 		widgetContainer = jQuery "<div style=\"text-align: left;\"></div>"
 
-		headerStyle =
+		headerColor =
 			if overdueTasksExist
-				"color: red;"
+				"red"
 			else
-				""
+				"#3498db"
 
-		widgetContainer.append "<a style=\"#{headerStyle}\" class=\"linkHeaderLightBig\" href=\"#{overdueTasksUrl}\">Overdue tasks: </a><br/>"
+		widgetContainer.append """<a style="color: #{headerColor};" class="linkHeaderLightBig" href="#{overdueTasksUrl}">Overdue tasks: </a><br/>"""
 
 		tasksContainer = jQuery '<div style="margin-left: 40px"></div>'
 		widgetContainer.append tasksContainer
