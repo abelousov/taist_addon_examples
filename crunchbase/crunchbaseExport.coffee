@@ -38,7 +38,7 @@
     for name, formField of formFieldsByNames
       exportedData[formField] = fieldValuesByNames[name]
 
-    taistApi.proxy.post formHost, formPath, exportedData, ->
+    taistApi.proxy.jqueryAjax formHost, formPath, {type: 'POST', data: exportedData}, ->
       callback()
 
   getGeneralInfoFields = ->
