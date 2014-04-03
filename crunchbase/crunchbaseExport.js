@@ -39,7 +39,7 @@
       formField = formFieldsByNames[name];
       exportedData[formField] = fieldValuesByNames[name];
     }
-    return taistApi.proxy.jqueryAjax(formHost, formPath, {
+    return taistApi.proxy.jQueryAjax(formHost, formPath, {
       type: 'POST',
       data: exportedData
     }, function() {
