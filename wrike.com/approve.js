@@ -3,6 +3,35 @@
   var WrikeTaskApprover, WrikeTaskFilters, approver, filters, start, states, taistApi, taistWrike, wrikeConstants;
   taistApi = null;
   approver = null;
+  filters = null;
+  start = function(_taistApi) {
+    var maybeSetTask, style;
+    taistApi = _taistApi;
+    approver = new WrikeTaskApprover();
+    filters = new WrikeTaskFilters();
+    style = $(wrikeConstants.common.hiddenClassCss);
+    $('html > head').append(style);
+    maybeSetTask = function(task) {
+      if (!task) {
+        return;
+      }
+      return approver.setTask(task);
+    };
+    taistWrike.onTaskViewRender(maybeSetTask);
+    taistWrike.onTaskChange(maybeSetTask);
+    $wrike.bus.on('list.tasklist.task.selected', function() {
+      return maybeSetTask(taistWrike.currentTask());
+    });
+    $(wrikeConstants.filters.streamViewButtonSelector).on('click', function() {
+      filters.renderFlags();
+      filters.filterTasks();
+      return false;
+    });
+    if (window.location.hash.match(/stream/)) {
+      filters.renderFlags();
+      return filters.filterTasks();
+    }
+  };
   states = {
     'initial': {
       triggers: {
@@ -211,34 +240,6 @@
     return WrikeTaskApprover;
 
   })();
-  approver = new WrikeTaskApprover();
-  filters = new WrikeTaskFilters();
-  start = function(_taistApi) {
-    var maybeSetTask, style;
-    taistApi = _taistApi;
-    style = $(wrikeConstants.common.hiddenClassCss);
-    $('html > head').append(style);
-    maybeSetTask = function(task) {
-      if (!task) {
-        return;
-      }
-      return approver.setTask(task);
-    };
-    taistWrike.onTaskViewRender(maybeSetTask);
-    taistWrike.onTaskChange(maybeSetTask);
-    $wrike.bus.on('list.tasklist.task.selected', function() {
-      return maybeSetTask(taistWrike.currentTask());
-    });
-    $(wrikeConstants.filters.streamViewButtonSelector).on('click', function() {
-      filters.renderFlags();
-      filters.filterTasks();
-      return false;
-    });
-    if (window.location.hash.match(/stream/)) {
-      filters.renderFlags();
-      return filters.filterTasks();
-    }
-  };
   taistWrike = {
     me: function() {
       return $wrike.user.getUid();

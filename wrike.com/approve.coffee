@@ -1,6 +1,37 @@
 ->
   taistApi = null
   approver = null
+  filters = null
+
+  start = (_taistApi) ->
+    taistApi = _taistApi
+
+    approver = new WrikeTaskApprover()
+    filters = new WrikeTaskFilters()
+
+    style = $ wrikeConstants.common.hiddenClassCss
+    $('html > head').append(style)
+
+    maybeSetTask = (task) ->
+      if not task
+        return
+      approver.setTask task
+
+    taistWrike.onTaskViewRender maybeSetTask
+
+    taistWrike.onTaskChange maybeSetTask
+
+    $wrike.bus.on 'list.tasklist.task.selected', ->
+      maybeSetTask taistWrike.currentTask()
+
+    $(wrikeConstants.filters.streamViewButtonSelector).on 'click', ->
+      filters.renderFlags()
+      filters.filterTasks()
+      false
+
+    if window.location.hash.match(/stream/)
+      filters.renderFlags()
+      filters.filterTasks()
 
   states =
     'initial':
@@ -112,7 +143,7 @@
     renderControls: ->
       @toolbar.empty()
 
-      roles = taistWrike.myTaskRoles(@task)
+      roles = taistWrike.myTaskRoles @task
       if roles.owner and states[@state].owner or roles.author and states[@state].author
         cfg = @cfg
         mOver = ->
@@ -149,44 +180,12 @@
 
       @state = newState
 
-  approver = new WrikeTaskApprover()
-  filters = new WrikeTaskFilters()
-
-  start = (_taistApi) ->
-    taistApi = _taistApi
-
-    style = $ wrikeConstants.common.hiddenClassCss
-    $('html > head').append(style)
-
-    maybeSetTask = (task) ->
-      if not task
-        return
-      approver.setTask task
-
-    taistWrike.onTaskViewRender maybeSetTask
-
-    taistWrike.onTaskChange maybeSetTask
-
-    $wrike.bus.on 'list.tasklist.task.selected', ->
-      maybeSetTask taistWrike.currentTask()
-
-    $(wrikeConstants.filters.streamViewButtonSelector).on 'click', ->
-      filters.renderFlags()
-      filters.filterTasks()
-      false
-
-    if window.location.hash.match(/stream/)
-      filters.renderFlags()
-      filters.filterTasks()
-
   taistWrike =
     me: -> $wrike.user.getUid()
 
     myTaskRoles: (task) ->
-      {
       owner: task.data['responsibleList'].indexOf(@me()) >= 0
       author: (task.get 'author') is @me()
-      }
 
     currentTaskView: ->
       window.Ext.ComponentMgr.get ($('.wspace-task-view').attr 'id')
