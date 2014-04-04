@@ -11,16 +11,23 @@
   margin-right: 0;
   margin-right: 15px;
   margin-bottom: 0;
+  font-weight: bold;
+  color: white;
+  transition: opacity 0.5s;
 }
 
-#taist-wrike-approval-send-for-approval {
-    background-color: #78b0ff;
+.taist-wrike-approval-button:hover {
+  opacity: 0.8;
 }
 
-#taist-wrike-approval-approve {
-    background-color: #86E886;
+#taist-wrike-approval-onApproval {
+  background-color: #78b0ff;
 }
 
-#taist-wrike-approval-decline {
-    background-color: #E88686;
+#taist-wrike-approval-approved {
+  background-color: #86E886;
+}
+
+#taist-wrike-approval-declined {
+  background-color: #E88686;
 }

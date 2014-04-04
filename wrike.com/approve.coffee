@@ -13,17 +13,20 @@
       visibleTo: 'owner'
     onApproval:
       next: ['approved', 'declined']
-      actionTitle: 'Send for approval'
+      buttonTitle: 'Send for approval'
       title: 'On Approval'
       visibleTo: 'author'
     approved:
-      actionTitle: 'Approve'
+      buttonTitle: 'Approve'
       title: 'Approved'
       visibleTo: 'owner'
+      action: ->
+        #emulate pressing on "complete" checkbox
+        ($ '.wspace-task-widgets-status-view-checktip .check-wrap').click()
     declined:
       next: ['onApproval']
       title: 'Declined'
-      actionTitle: 'Decline'
+      buttonTitle: 'Decline'
       visibleTo: 'owner'
 
   class WrikeTaskApprover
@@ -39,13 +42,13 @@
       taistWrike.onCurrentTaskSave setTaskIfNotNull
 
     _setTask: (task) ->
+      window.curTask = task
+      taistApi.log 'current task: ', task
       @_cleanButtons()
 
       currentState = @_defineStateByTask task
-      taistApi.log {currentState}
 
       if @_stateIsVisibleToMe task, currentState
-        taistApi.log {'rendering'}
         @_renderButtons currentState
 
     _cleanButtons: ->
@@ -63,8 +66,8 @@
 
     _renderButtonsToolbar: ->
       originalToolbar = $ @_originalToolbarSelector
-      taistApi.log {originalToolbar}
       buttonsToolbar = (originalToolbar).clone()
+      buttonsToolbar.empty()
       buttonsToolbar.attr 'id', @_buttonsToolbarId
       originalToolbar.after buttonsToolbar
 
@@ -72,24 +75,29 @@
 
     _renderButtons: (state) ->
       buttonsToolbar = @_renderButtonsToolbar()
-      for nextStateName in state.next
-        nextStateButton = @_createStateButton nextStateName
-        buttonsToolbar.append nextStateButton
+      if state.next?
+        for nextStateName in state.next
+          nextStateButton = @_createStateButton nextStateName
+          buttonsToolbar.append nextStateButton
 
     _createStateButton: (stateName) ->
       state = states[stateName]
       button = $ '<a></a>',
         "class": "wspace-task-settings-button taist-wrike-approval-button"
-        text: state.actionTitle
+        text: state.buttonTitle
         id: 'taist-wrike-approval-' + stateName
         click: =>
           @_applyStateToCurrentTask state
           false
 
-    _applyStateToCurrentTask: (newState) ->
+    _applyStateToCurrentTask: (state) ->
+      @_updateTaskTitle state
+      state.action?()
+
+    _updateTaskTitle: (state) ->
       titleInput = $ "#{@_containerSelector} textarea"
       currentTitle = titleInput.val()
-      titleInput.val @_applyStateToTitle currentTitle, newState
+      titleInput.val @_applyStateToTitle currentTitle, state
 
       # Emulate pressing enter on task title input to trigger save
       titleInput.focus()
@@ -106,7 +114,7 @@
 
       return currentTitle
 
-    _getTitlePrefix: (state) -> "[#{state.title} ]"
+    _getTitlePrefix: (state) -> "[#{state.title}] "
 
   class WrikeTaskFilters
     filter: 'All'
@@ -173,7 +181,14 @@
       @currentTaskView()?['record']
 
     onCurrentTaskChange: (callback) ->
-      taistApi.wait.change (=> @currentTask()), (task) -> callback task
+      callbackAfterTaskLoads = (task) ->
+        if task?
+          taistApi.wait.once (-> task.data.title?), ->
+            callback task
+
+      taistApi.wait.change (=> @currentTask()), callbackAfterTaskLoads
+
+      callbackAfterTaskLoads @currentTask()
 
     onCurrentTaskSave: (callback) ->
       taistApi.aspect.after $wrike.record.Base.prototype, 'getChanges', ->

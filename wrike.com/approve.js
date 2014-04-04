@@ -13,19 +13,22 @@
     },
     onApproval: {
       next: ['approved', 'declined'],
-      actionTitle: 'Send for approval',
+      buttonTitle: 'Send for approval',
       title: 'On Approval',
       visibleTo: 'author'
     },
     approved: {
-      actionTitle: 'Approve',
+      buttonTitle: 'Approve',
       title: 'Approved',
-      visibleTo: 'owner'
+      visibleTo: 'owner',
+      action: function() {
+        return ($('.wspace-task-widgets-status-view-checktip .check-wrap')).click();
+      }
     },
     declined: {
       next: ['onApproval'],
       title: 'Declined',
-      actionTitle: 'Decline',
+      buttonTitle: 'Decline',
       visibleTo: 'owner'
     }
   };
@@ -53,15 +56,11 @@
 
     WrikeTaskApprover.prototype._setTask = function(task) {
       var currentState;
+      window.curTask = task;
+      taistApi.log('current task: ', task);
       this._cleanButtons();
       currentState = this._defineStateByTask(task);
-      taistApi.log({
-        currentState: currentState
-      });
       if (this._stateIsVisibleToMe(task, currentState)) {
-        taistApi.log({
-          'rendering': 'rendering'
-        });
         return this._renderButtons(currentState);
       }
     };
@@ -89,10 +88,8 @@
     WrikeTaskApprover.prototype._renderButtonsToolbar = function() {
       var buttonsToolbar, originalToolbar;
       originalToolbar = $(this._originalToolbarSelector);
-      taistApi.log({
-        originalToolbar: originalToolbar
-      });
       buttonsToolbar = originalToolbar.clone();
+      buttonsToolbar.empty();
       buttonsToolbar.attr('id', this._buttonsToolbarId);
       originalToolbar.after(buttonsToolbar);
       return buttonsToolbar;
@@ -101,14 +98,16 @@
     WrikeTaskApprover.prototype._renderButtons = function(state) {
       var buttonsToolbar, nextStateButton, nextStateName, _i, _len, _ref, _results;
       buttonsToolbar = this._renderButtonsToolbar();
-      _ref = state.next;
-      _results = [];
-      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-        nextStateName = _ref[_i];
-        nextStateButton = this._createStateButton(nextStateName);
-        _results.push(buttonsToolbar.append(nextStateButton));
+      if (state.next != null) {
+        _ref = state.next;
+        _results = [];
+        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+          nextStateName = _ref[_i];
+          nextStateButton = this._createStateButton(nextStateName);
+          _results.push(buttonsToolbar.append(nextStateButton));
+        }
+        return _results;
       }
-      return _results;
     };
 
     WrikeTaskApprover.prototype._createStateButton = function(stateName) {
@@ -116,7 +115,7 @@
       state = states[stateName];
       return button = $('<a></a>', {
         "class": "wspace-task-settings-button taist-wrike-approval-button",
-        text: state.actionTitle,
+        text: state.buttonTitle,
         id: 'taist-wrike-approval-' + stateName,
         click: (function(_this) {
           return function() {
@@ -127,11 +126,16 @@
       });
     };
 
-    WrikeTaskApprover.prototype._applyStateToCurrentTask = function(newState) {
+    WrikeTaskApprover.prototype._applyStateToCurrentTask = function(state) {
+      this._updateTaskTitle(state);
+      return typeof state.action === "function" ? state.action() : void 0;
+    };
+
+    WrikeTaskApprover.prototype._updateTaskTitle = function(state) {
       var currentTitle, titleInput;
       titleInput = $("" + this._containerSelector + " textarea");
       currentTitle = titleInput.val();
-      titleInput.val(this._applyStateToTitle(currentTitle, newState));
+      titleInput.val(this._applyStateToTitle(currentTitle, state));
       titleInput.focus();
       $.event.trigger({
         type: 'keypress',
@@ -151,7 +155,7 @@
     };
 
     WrikeTaskApprover.prototype._getTitlePrefix = function(state) {
-      return "[" + state.title + " ]";
+      return "[" + state.title + "] ";
     };
 
     return WrikeTaskApprover;
@@ -264,13 +268,22 @@
       return (_ref = this.currentTaskView()) != null ? _ref['record'] : void 0;
     },
     onCurrentTaskChange: function(callback) {
-      return taistApi.wait.change(((function(_this) {
+      var callbackAfterTaskLoads;
+      callbackAfterTaskLoads = function(task) {
+        if (task != null) {
+          return taistApi.wait.once((function() {
+            return task.data.title != null;
+          }), function() {
+            return callback(task);
+          });
+        }
+      };
+      taistApi.wait.change(((function(_this) {
         return function() {
           return _this.currentTask();
         };
-      })(this)), function(task) {
-        return callback(task);
-      });
+      })(this)), callbackAfterTaskLoads);
+      return callbackAfterTaskLoads(this.currentTask());
     },
     onCurrentTaskSave: function(callback) {
       return taistApi.aspect.after($wrike.record.Base.prototype, 'getChanges', function() {
