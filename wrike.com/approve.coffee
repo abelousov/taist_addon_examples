@@ -1,63 +1,116 @@
 ->
   taistApi = null
-  approver = null
-  filters = null
 
   start = (_taistApi) ->
     taistApi = _taistApi
 
-    approver = new WrikeTaskApprover()
-    filters = new WrikeTaskFilters()
-
-    style = $ wrikeConstants.common.hiddenClassCss
-    $('html > head').append(style)
-
-    maybeSetTask = (task) ->
-      if not task
-        return
-      approver.setTask task
-
-    taistWrike.onTaskViewRender maybeSetTask
-
-    taistWrike.onTaskChange maybeSetTask
-
-    $wrike.bus.on 'list.tasklist.task.selected', ->
-      maybeSetTask taistWrike.currentTask()
-
-    $(wrikeConstants.filters.streamViewButtonSelector).on 'click', ->
-      filters.renderFlags()
-      filters.filterTasks()
-      false
-
-    if window.location.hash.match(/stream/)
-      filters.renderFlags()
-      filters.filterTasks()
+    (new WrikeTaskApprover()).renderOnCurrentTaskChange()
+  #    (new WrikeTaskFilters()).renderOnFiltersAppear()
 
   states =
-    'initial':
-      triggers:
-        'Send for approval': 'onApproval'
-      owner: true
-    'onApproval':
-      triggers:
-        'Approve': 'accepted'
-        'Decline': 'declined'
-      titleTag: 'To Approve'
-      author: true
-    'accepted':
-      titleTag: 'Approved'
-      owner: true
-    'declined':
-      triggers:
-        'Send for approval': 'onApproval'
-      titleTag: 'Declined'
-      owner: true
+    initial:
+      next: ['onApproval']
+      visibleTo: 'owner'
+    onApproval:
+      next: ['approved', 'declined']
+      actionTitle: 'Send for approval'
+      title: 'On Approval'
+      visibleTo: 'author'
+    approved:
+      actionTitle: 'Approve'
+      title: 'Approved'
+      visibleTo: 'owner'
+    declined:
+      next: ['onApproval']
+      title: 'Declined'
+      actionTitle: 'Decline'
+      visibleTo: 'owner'
 
-  wrikeConstants =
-    common:
-      classHidden: 'wrike-taist-hidden'
-      hiddenClassCss: '<style> .wrike-taist-hidden {display: none;} </style>'
-    filters:
+  class WrikeTaskApprover
+    _containerSelector: '.wspace-task-widgets-title-view'
+    _buttonsToolbarId: 'wrike-taist-toolbar'
+    _originalToolbarSelector: '.wspace-task-settings-bar'
+
+    renderOnCurrentTaskChange: ->
+      setTaskIfNotNull = (task) =>
+        if task?
+          @_setTask task
+      taistWrike.onCurrentTaskChange setTaskIfNotNull
+      taistWrike.onCurrentTaskSave setTaskIfNotNull
+
+    _setTask: (task) ->
+      @_cleanButtons()
+
+      currentState = @_defineStateByTask task
+      taistApi.log {currentState}
+
+      if @_stateIsVisibleToMe task, currentState
+        taistApi.log {'rendering'}
+        @_renderButtons currentState
+
+    _cleanButtons: ->
+      ($ '#' + @_buttonsToolbarId).remove()
+
+    _defineStateByTask: (task) ->
+      taskTitle = task.data['title']
+      for stateName, state of states
+        if (taskTitle.indexOf (@_getTitlePrefix state)) >= 0
+          return state
+
+      return states.initial
+
+    _stateIsVisibleToMe: (task, state) -> ((taistWrike.myTaskRoles task).indexOf state.visibleTo) > -1
+
+    _renderButtonsToolbar: ->
+      originalToolbar = $ @_originalToolbarSelector
+      taistApi.log {originalToolbar}
+      buttonsToolbar = (originalToolbar).clone()
+      buttonsToolbar.attr 'id', @_buttonsToolbarId
+      originalToolbar.after buttonsToolbar
+
+      return buttonsToolbar
+
+    _renderButtons: (state) ->
+      buttonsToolbar = @_renderButtonsToolbar()
+      for nextStateName in state.next
+        nextStateButton = @_createStateButton nextStateName
+        buttonsToolbar.append nextStateButton
+
+    _createStateButton: (stateName) ->
+      state = states[stateName]
+      button = $ '<a></a>',
+        "class": "wspace-task-settings-button taist-wrike-approval-button"
+        text: state.actionTitle
+        id: 'taist-wrike-approval-' + stateName
+        click: =>
+          @_applyStateToCurrentTask state
+          false
+
+    _applyStateToCurrentTask: (newState) ->
+      titleInput = $ "#{@_containerSelector} textarea"
+      currentTitle = titleInput.val()
+      titleInput.val @_applyStateToTitle currentTitle, newState
+
+      # Emulate pressing enter on task title input to trigger save
+      titleInput.focus()
+      $.event.trigger
+        type: 'keypress'
+        which: 13
+      titleInput.blur()
+
+    _applyStateToTitle: (currentTitle, newState) ->
+      for stateName, state of states
+        currentTitle = currentTitle.replace (@_getTitlePrefix state), ''
+
+      currentTitle = (@_getTitlePrefix newState) + currentTitle
+
+      return currentTitle
+
+    _getTitlePrefix: (state) -> "[#{state.title} ]"
+
+  class WrikeTaskFilters
+    filter: 'All'
+    cfg:
       flagTemplate: '<a class="wrike-button-checkbox x-btn-noicon" href="#"></a>'
       taistFiltersContainerId: 'wrike-taist-approval-filters'
       flagsOuterContainerSelector: '.type-selector'
@@ -65,16 +118,12 @@
       flagCheckedClass: 'x-btn-pressed'
       streamTaskSelector: '.stream-task-entry'
       streamViewButtonSelector: '.wspace_header_buttonStreamView'
-    task:
-      containerSelector: '.wspace-task-widgets-title-view'
-      toolbarSelector: '.wspace-task-settings-bar'
-      taistToolbarId: 'wrike-taist-toolbar'
-      buttonTemplate: '<a class="wspace-task-settings-button"></a>'
-      buttonHighlightClass: 'taist-wrike-x-btn-over'
 
-  class WrikeTaskFilters
-    filter: 'All'
-    cfg: wrikeConstants.filters
+    renderOnFiltersAppear: ->
+      #TODO: рендерить при нужном хэше
+      if window.location.hash.match(/stream/)
+        @renderFlags()
+        @filterTasks()
 
     renderFlags: ->
       if $('#' + @cfg.taistFiltersContainerId).length
@@ -101,120 +150,34 @@
           false
 
     filterTasks: ->
-      hidden = wrikeConstants.common.classHidden
+      #TODO: add our filter to current filter
       $(@cfg.streamTaskSelector).each (i, element) =>
-        elm = $ element
-        if @filter is 'All'
-          elm.removeClass hidden
-        else
-          taskTitle = elm.find('span').text()
-          if taskTitle.match '\\[' + @filter + '\\]'
-            elm.removeClass hidden
-          else
-            elm.addClass hidden
+        console.log 'filter tasks here'
 
-  class WrikeTaskApprover
-    cfg: wrikeConstants.task
-    eventObject: null
-
-    setTask: (task) ->
-      if @task isnt task
-        @title = $(@cfg.containerSelector).find('textarea')
-        @state = @stateFromTitle()
-
-      @task = task
-
-      if not $('#' + @cfg.taistToolbarId).length
-        originalToolbar = $ @cfg.toolbarSelector
-        @toolbar = originalToolbar.clone()
-        @toolbar.attr 'id', @cfg.taistToolbarId
-        originalToolbar.after @toolbar
-
-      @renderControls()
-
-    stateFromTitle: ->
-      m = @title.val().match /^\[(.+)\].*/
-      if not m?[1]
-        return 'initial'
-      for stateName, state of states
-        if state.titleTag is m[1]
-          return stateName
-
-    renderControls: ->
-      @toolbar.empty()
-
-      roles = taistWrike.myTaskRoles @task
-      if roles.owner and states[@state].owner or roles.author and states[@state].author
-        cfg = @cfg
-        mOver = ->
-          $(@).addClass cfg.buttonHighlightClass
-        mOut = ->
-          $(@).removeClass cfg.buttonHighlightClass
-
-        for buttonTitle, nextState of states[@state].triggers
-          do(buttonTitle, nextState) =>
-            idSuffix = buttonTitle.toLowerCase().replace(/\s/g, '-')
-            button = $(cfg.buttonTemplate)
-            button.text buttonTitle
-            button.hover mOver, mOut
-            button.attr 'id', 'taist-wrike-approval-' + idSuffix
-            button.addClass 'taist-wrike-approval-button'
-            button.on 'click', =>
-              @toolbar.empty()
-              @applyState nextState
-              @renderControls()
-              false
-            @toolbar.append button
-
-    applyState: (newState) ->
-      newPrefix = '[' + states[newState].titleTag + '] '
-      if @state is 'initial' and newState isnt 'initial'
-        @title.val(newPrefix + @title.val())
-      else
-        @title.val(@title.val().replace(/^\[.+\]\s/, newPrefix))
-
-      # Sequence for auto-saving modified ticket title
-      @title.focus()
-      $.event.trigger {type: 'keypress', which: 13 }
-      @title.blur()
-
-      @state = newState
-
-  taistWrike =
+  window.taistWrike = taistWrike =
     me: -> $wrike.user.getUid()
 
     myTaskRoles: (task) ->
-      owner: task.data['responsibleList'].indexOf(@me()) >= 0
-      author: (task.get 'author') is @me()
+      roleConditions =
+        owner: => task.data['responsibleList'].indexOf(@me()) >= 0
+        author: => (task.get 'author') is @me()
+
+      return (role for role,condition of roleConditions when condition())
 
     currentTaskView: ->
-      window.Ext.ComponentMgr.get ($('.wspace-task-view').attr 'id')
+      taskViewId = $('.wspace-task-view').attr 'id'
+      if taskViewId?
+        window.Ext.ComponentMgr.get taskViewId
 
     currentTask: ->
       @currentTaskView()?['record']
 
-    onTaskViewRender: (callback) ->
-      listenerName = 'load'
-      listenersInPrototype = $wspace.task.View.prototype.xlisteners
+    onCurrentTaskChange: (callback) ->
+      taistApi.wait.change (=> @currentTask()), (task) -> callback task
 
-      taistApi.aspect.after listenersInPrototype, listenerName, (view, task) ->
-        if task?
-          task.load (loadedTask) ->
-            callback loadedTask, view
-        else
-          return callback null, view
-
-      currentTaskView = @currentTaskView()
-      currentTask = @currentTask()
-
-      if currentTask? and currentTaskView?
-        enhancedListener = listenersInPrototype[listenerName]
-        currentViewListeners = currentTaskView.events[listenerName].listeners[0]
-        currentViewListeners.fn = currentViewListeners.fireFn = enhancedListener
-
-        callback currentTask, currentTaskView
-
-    onTaskChange: (callback) ->
-      taistApi.aspect.after $wrike.record.Base.prototype, 'getChanges', (-> callback @)
+    onCurrentTaskSave: (callback) ->
+      taistApi.aspect.after $wrike.record.Base.prototype, 'getChanges', ->
+        if @ is taistWrike.currentTask()
+          callback @
 
   {start}
