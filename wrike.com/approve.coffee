@@ -3,18 +3,20 @@
 
   start = (_taistApi) ->
     taistApi = _taistApi
+    taistApi.hash.useHashchangeEvent = false
 
-    (new WrikeTaskApprover()).renderOnCurrentTaskChange()
-  #    (new WrikeTaskFilters()).renderOnFiltersAppear()
+    approver.renderOnCurrentTaskChange()
+    allFilters.renderOnFiltersAppear()
 
   states =
     initial:
       next: ['onApproval']
       visibleTo: 'owner'
+
     onApproval:
       next: ['approved', 'declined']
       buttonTitle: 'Send for approval'
-      title: 'On Approval'
+      title: 'OnApproval'
       visibleTo: 'author'
     approved:
       buttonTitle: 'Approve'
@@ -29,7 +31,7 @@
       buttonTitle: 'Decline'
       visibleTo: 'owner'
 
-  class WrikeTaskApprover
+  approver =
     _containerSelector: '.wspace-task-widgets-title-view'
     _buttonsToolbarId: 'wrike-taist-toolbar'
     _originalToolbarSelector: '.wspace-task-settings-bar'
@@ -42,25 +44,15 @@
       taistWrike.onCurrentTaskSave setTaskIfNotNull
 
     _setTask: (task) ->
-      window.curTask = task
-      taistApi.log 'current task: ', task
       @_cleanButtons()
 
-      currentState = @_defineStateByTask task
+      currentState = extractStateFromInput @_getTitleInput()
 
       if @_stateIsVisibleToMe task, currentState
         @_renderButtons currentState
 
     _cleanButtons: ->
       ($ '#' + @_buttonsToolbarId).remove()
-
-    _defineStateByTask: (task) ->
-      taskTitle = task.data['title']
-      for stateName, state of states
-        if (taskTitle.indexOf (@_getTitlePrefix state)) >= 0
-          return state
-
-      return states.initial
 
     _stateIsVisibleToMe: (task, state) -> ((taistWrike.myTaskRoles task).indexOf state.visibleTo) > -1
 
@@ -91,76 +83,116 @@
           false
 
     _applyStateToCurrentTask: (state) ->
-      @_updateTaskTitle state
+      applyStateToInput state, @_getTitleInput()
       state.action?()
 
-    _updateTaskTitle: (state) ->
-      titleInput = $ "#{@_containerSelector} textarea"
-      currentTitle = titleInput.val()
-      titleInput.val @_applyStateToTitle currentTitle, state
+    _getTitleInput: -> $ "#{@_containerSelector} textarea"
 
-      # Emulate pressing enter on task title input to trigger save
-      titleInput.focus()
-      $.event.trigger
-        type: 'keypress'
-        which: 13
-      titleInput.blur()
+  extractStateFromInput = (input) ->
+    for stateName, state of states
+      if (input.val().indexOf (getTitlePrefix state)) >= 0
+        return state
 
-    _applyStateToTitle: (currentTitle, newState) ->
-      for stateName, state of states
-        currentTitle = currentTitle.replace (@_getTitlePrefix state), ''
+    return states.initial
 
-      currentTitle = (@_getTitlePrefix newState) + currentTitle
 
-      return currentTitle
+  applyStateToInput = (state, input) ->
+    currentText = input.val()
+    input.val applyStateToText state, currentText
 
-    _getTitlePrefix: (state) -> "[#{state.title}] "
+    # Emulate pressing enter on task title input to trigger input change event
+    input.focus()
+    $.event.trigger
+      type: 'keypress'
+      which: 13
+    input.blur()
 
-  class WrikeTaskFilters
-    filter: 'All'
-    cfg:
-      flagTemplate: '<a class="wrike-button-checkbox x-btn-noicon" href="#"></a>'
-      taistFiltersContainerId: 'wrike-taist-approval-filters'
-      flagsOuterContainerSelector: '.type-selector'
-      flagsInnerContainerSelector: '.x-column'
-      flagCheckedClass: 'x-btn-pressed'
-      streamTaskSelector: '.stream-task-entry'
-      streamViewButtonSelector: '.wspace_header_buttonStreamView'
+  applyStateToText = (statetoApply, currentText) ->
+    for stateName, state of states
+      currentText = currentText.replace (getTitlePrefix state), ''
+
+    if statetoApply?
+      currentText = (getTitlePrefix statetoApply) + currentText
+
+    return currentText
+
+  getTitlePrefix = (state) -> "[#{state.title}] "
+
+  allFilters =
+    _filtersPanelSelector: '.wspace-folder-filterpanel-body'
+    _filterGroupClass: "wspace-folder-filterpanel-filterpane wspace-tree-branch-root"
+    _taistFiltersContainerId: 'wrike-taist-approval-filters'
+    _filtersContainerClass: 'wspace-tree-branch'
+    _filterSelectedClass: 'x-btn-pressed'
+    _filtersFoldButtonClass: 'wspace-tree-foldButton'
+    _filtersFoldClass: 'wspace-tree-folded'
+    _searchFieldSelector: '.wrike-field-search input'
+
+    _filters: null
 
     renderOnFiltersAppear: ->
-      #TODO: рендерить при нужном хэше
-      if window.location.hash.match(/stream/)
-        @renderFlags()
-        @filterTasks()
+      taistApi.wait.elementRender @_filtersPanelSelector, (filtersPanel) =>
+        #TODO: remove possibly redundant check
+        if not ($ '#' + @_taistFiltersContainerId)[0]?
+          filtersContainer = @_renderFiltersContainer filtersPanel
 
-    renderFlags: ->
-      if $('#' + @cfg.taistFiltersContainerId).length
-        return
-      originalFlags = $ @cfg.flagsOuterContainerSelector
-      flags = originalFlags.clone()
-      flags.attr 'id', @cfg.taistFiltersContainerId
-      flagsContainer = flags.find(@cfg.flagsInnerContainerSelector)
-      flagsContainer.empty()
-      originalFlags.after flags
-      self = @
-      for _, state of states
-        flag = $(self.cfg.flagTemplate)
-        flag.text state.titleTag or 'All'
-        flagsContainer.append flag
-        if @filter is flag.text()
-          flag.addClass(self.cfg.flagCheckedClass)
-        flag.on 'click', ->
-          flagsContainer.find('a').
-          removeClass(self.cfg.flagCheckedClass)
-          $(@).addClass(self.cfg.flagCheckedClass)
-          self.filter = $(@).text()
-          self.filterTasks()
-          false
+          @_filters = []
+          for _, state of states
+            if state.title?
+              filter = @_renderFilter state
 
-    filterTasks: ->
-      #TODO: add our filter to current filter
-      $(@cfg.streamTaskSelector).each (i, element) =>
-        console.log 'filter tasks here'
+              @_filters.push filter
+              filtersContainer.append filter
+
+    _renderFiltersContainer: (filtersPanel) ->
+      filtersGroup = @_createFiltersGroupDom()
+
+      previousFiltersGroup = filtersPanel.find(@_getSelectorFromClass @_filterGroupClass).last()
+      previousFiltersGroup.after filtersGroup
+
+      foldButton = filtersGroup.find @_getSelectorFromClass @_filtersFoldButtonClass
+      foldButton.click =>
+        filtersGroup.toggleClass @_filtersFoldClass
+
+      return filtersGroup.find (@_getSelectorFromClass @_filtersContainerClass)
+
+    _createFiltersGroupDom: -> $ """
+<div class="#{@_filterGroupClass}" id="#{@_taistFiltersContainerId}">
+	<div class="wspace-tree-plate">
+		<div class="#{@_filtersFoldButtonClass}"></div>
+		<div class="wspace-tree-title-root">Approval</div>
+	</div>
+	<div class="#{@_filtersContainerClass}">
+	</div>
+</div>
+"""
+    _getSelectorFromClass: (classString) ->
+      singleSelectorsArray = (("." + singleClass) for singleClass in classString.split ' ')
+      return singleSelectorsArray.join()
+
+    _renderFilter: (state, allFilters) ->
+      filter = @_createFilterDom state.title
+
+      filter.click =>
+        targetState =
+          if filter.hasClass @_filterSelectedClass
+            null
+          else
+            state
+
+        @_updateFilters targetState
+
+        return false
+
+    _createFilterDom: (filterTitle) -> $ """<a class="wrike-button-checkbox x-btn-noicon" href="#" style="width: auto;">#{filterTitle}</a>"""
+
+    _updateFilters: (state) ->
+      for filter in @_filters
+        filter.toggleClass @_filterSelectedClass, state?.title is filter.text()
+
+      applyStateToInput state, @_getSearchField()
+
+    _getSearchField: -> $ @_searchFieldSelector
 
   window.taistWrike = taistWrike =
     me: -> $wrike.user.getUid()
@@ -181,14 +213,10 @@
       @currentTaskView()?['record']
 
     onCurrentTaskChange: (callback) ->
-      callbackAfterTaskLoads = (task) ->
+      taistApi.wait.change (=> @currentTask()), (task) ->
         if task?
           taistApi.wait.once (-> task.data.title?), ->
             callback task
-
-      taistApi.wait.change (=> @currentTask()), callbackAfterTaskLoads
-
-      callbackAfterTaskLoads @currentTask()
 
     onCurrentTaskSave: (callback) ->
       taistApi.aspect.after $wrike.record.Base.prototype, 'getChanges', ->
