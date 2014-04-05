@@ -89,16 +89,17 @@
     _getTitleInput: -> $ "#{@_containerSelector} textarea"
 
   extractStateFromInput = (input) ->
+    lowerCasedInputText = input.val().toLowerCase()
     for stateName, state of states
-      if (input.val().indexOf (getTitlePrefix state)) >= 0
+      if (lowerCasedInputText.indexOf getNormalizedStatePrefix state) >= 0
         return state
 
     return states.initial
 
-
   applyStateToInput = (state, input) ->
     currentText = input.val()
-    input.val applyStateToText state, currentText
+    window.curInput = input
+    input.val (applyStateToText state, currentText)
 
     # Emulate pressing enter on task title input to trigger input change event
     input.focus()
@@ -107,42 +108,37 @@
       which: 13
     input.blur()
 
+  getNormalizedStatePrefix = (state) -> $.trim (getTitlePrefix state).toLowerCase()
+
   applyStateToText = (statetoApply, currentText) ->
     for stateName, state of states
-      currentText = currentText.replace (getTitlePrefix state), ''
+      for removedPrefix in [(getTitlePrefix state), (getNormalizedStatePrefix state)]
+        currentText = currentText.replace removedPrefix, ''
 
     if statetoApply?
       currentText = (getTitlePrefix statetoApply) + currentText
 
     return currentText
 
-  getTitlePrefix = (state) -> "[#{state.title}] "
+  getTitlePrefix = (state) -> "[#{state.title}]"
 
   allFilters =
     _filtersPanelSelector: '.wspace-folder-filterpanel-body'
     _filterGroupClass: "wspace-folder-filterpanel-filterpane wspace-tree-branch-root"
-    _taistFiltersContainerId: 'wrike-taist-approval-filters'
     _filtersContainerClass: 'wspace-tree-branch'
     _filterSelectedClass: 'x-btn-pressed'
     _filtersFoldButtonClass: 'wspace-tree-foldButton'
     _filtersFoldClass: 'wspace-tree-folded'
-    _searchFieldSelector: '.wrike-field-search input'
+    _searchFieldSelector: '.wspace-folder-mainbar .wrike-field-search input'
 
     _filters: null
 
     renderOnFiltersAppear: ->
       taistApi.wait.elementRender @_filtersPanelSelector, (filtersPanel) =>
-        #TODO: remove possibly redundant check
-        if not ($ '#' + @_taistFiltersContainerId)[0]?
-          filtersContainer = @_renderFiltersContainer filtersPanel
+        filtersContainer = @_renderFiltersContainer filtersPanel
+        @_renderFilters filtersContainer
 
-          @_filters = []
-          for _, state of states
-            if state.title?
-              filter = @_renderFilter state
-
-              @_filters.push filter
-              filtersContainer.append filter
+        @_setCurrentState()
 
     _renderFiltersContainer: (filtersPanel) ->
       filtersGroup = @_createFiltersGroupDom()
@@ -156,8 +152,20 @@
 
       return filtersGroup.find (@_getSelectorFromClass @_filtersContainerClass)
 
+    _renderFilters: (filtersContainer) ->
+      @_filters = []
+      for _, state of states
+        if state.title?
+          filter = @_renderFilter state
+
+          @_filters.push filter
+          filtersContainer.append filter
+
+    _setCurrentState: ->
+      @_updateFilters (extractStateFromInput @_getSearchField()), false
+
     _createFiltersGroupDom: -> $ """
-<div class="#{@_filterGroupClass}" id="#{@_taistFiltersContainerId}">
+<div class="#{@_filterGroupClass}">
 	<div class="wspace-tree-plate">
 		<div class="#{@_filtersFoldButtonClass}"></div>
 		<div class="wspace-tree-title-root">Approval</div>
@@ -180,19 +188,25 @@
           else
             state
 
-        @_updateFilters targetState
+        @_updateFilters targetState, true
 
         return false
 
     _createFilterDom: (filterTitle) -> $ """<a class="wrike-button-checkbox x-btn-noicon" href="#" style="width: auto;">#{filterTitle}</a>"""
 
-    _updateFilters: (state) ->
+    _updateFilters: (state, needUpdateSearchField) ->
       for filter in @_filters
         filter.toggleClass @_filterSelectedClass, state?.title is filter.text()
 
-      applyStateToInput state, @_getSearchField()
+      if needUpdateSearchField
+        applyStateToInput state, @_getSearchField()
 
-    _getSearchField: -> $ @_searchFieldSelector
+    _getSearchField: ->
+      field = $ @_searchFieldSelector
+      window.foundSearchFields ?= []
+      window.foundSearchFields.push field
+
+      return field
 
   window.taistWrike = taistWrike =
     me: -> $wrike.user.getUid()
