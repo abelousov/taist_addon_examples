@@ -5,8 +5,8 @@
     taistApi = _taistApi
     taistApi.hash.useHashchangeEvent = false
 
-    approver.renderOnCurrentTaskChange()
-    allFilters.renderOnFiltersAppear()
+    buttonsBar.renderOnCurrentTaskChange()
+    filtersPanel.renderOnFiltersAppear()
 
   states =
     initial:
@@ -31,7 +31,7 @@
       buttonTitle: 'Decline'
       visibleTo: 'owner'
 
-  approver =
+  buttonsBar =
     _containerSelector: '.wspace-task-widgets-title-view'
     _buttonsToolbarId: 'wrike-taist-toolbar'
     _originalToolbarSelector: '.wspace-task-settings-bar'
@@ -40,8 +40,8 @@
       setTaskIfNotNull = (task) =>
         if task?
           @_setTask task
-      taistWrike.onCurrentTaskChange setTaskIfNotNull
-      taistWrike.onCurrentTaskSave setTaskIfNotNull
+      wrikeUtils.onCurrentTaskChange setTaskIfNotNull
+      wrikeUtils.onCurrentTaskSave setTaskIfNotNull
 
     _setTask: (task) ->
       @_cleanButtons()
@@ -54,7 +54,7 @@
     _cleanButtons: ->
       ($ '#' + @_buttonsToolbarId).remove()
 
-    _stateIsVisibleToMe: (task, state) -> ((taistWrike.myTaskRoles task).indexOf state.visibleTo) > -1
+    _stateIsVisibleToMe: (task, state) -> ((wrikeUtils.myTaskRoles task).indexOf state.visibleTo) > -1
 
     _renderButtonsToolbar: ->
       originalToolbar = $ @_originalToolbarSelector
@@ -120,9 +120,9 @@
 
     return currentText
 
-  getTitlePrefix = (state) -> "[#{state.title}]"
+  getTitlePrefix = (state) -> "[#{state.title}] "
 
-  allFilters =
+  filtersPanel =
     _filtersPanelSelector: '.wspace-folder-filterpanel-body'
     _filterGroupClass: "wspace-folder-filterpanel-filterpane wspace-tree-branch-root"
     _filtersContainerClass: 'wspace-tree-branch'
@@ -178,7 +178,7 @@
       singleSelectorsArray = (("." + singleClass) for singleClass in classString.split ' ')
       return singleSelectorsArray.join()
 
-    _renderFilter: (state, allFilters) ->
+    _renderFilter: (state, filtersPanel) ->
       filter = @_createFilterDom state.title
 
       filter.click =>
@@ -201,14 +201,9 @@
       if needUpdateSearchField
         applyStateToInput state, @_getSearchField()
 
-    _getSearchField: ->
-      field = $ @_searchFieldSelector
-      window.foundSearchFields ?= []
-      window.foundSearchFields.push field
+    _getSearchField: -> $ @_searchFieldSelector
 
-      return field
-
-  window.taistWrike = taistWrike =
+  wrikeUtils =
     me: -> $wrike.user.getUid()
 
     myTaskRoles: (task) ->
@@ -234,7 +229,7 @@
 
     onCurrentTaskSave: (callback) ->
       taistApi.aspect.after $wrike.record.Base.prototype, 'getChanges', ->
-        if @ is taistWrike.currentTask()
+        if @ is wrikeUtils.currentTask()
           callback @
 
   {start}
