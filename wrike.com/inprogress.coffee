@@ -1,142 +1,264 @@
 ->
-	taistApi = null
-	inprogressTagText = "[In progress] "
+  start = (_taistApi) ->
+    CustomStates.setTaistApi _taistApi
 
-	start = (_taistApi) ->
-		taistApi = _taistApi
+    customStates = new CustomStates 'In progress', inprogressStates
+    customStates.render()
 
-		wrikeUtils.onTaskViewRender drawInProgressCheckbox
+  ACTIVE = 0
+  COMPLETED = 1
+  DEFERRED = 2
+  CANCELLED = 3
 
-		renderFilterPanel()
+  inprogressStates =
+    initial:
+      next: ['inProgress']
+      visibleTo: 'owner'
+      possibleTaskStates: [ACTIVE, DEFERRED]
 
-	drawInProgressCheckbox = (task, taskView) ->
-		if not taskView.inProgressCheckbox?
-			taskView.inProgressCheckbox = new WrikeCheckbox "In progress", (checked) ->
-				currentTask = taskView["record"]
-				currentTitle = currentTask.get 'title'
-				currentTask.set 'title', (if checked then inprogressTagText + currentTitle else currentTitle.replace inprogressTagText, '')
-				currentTask.save taskView.callback
+    inProgress:
+      buttonTitle: 'In progress'
+      title: 'InProgress'
+      visibleTo: 'owner'
+      possibleTaskStates: [ACTIVE, DEFERRED]
+      targetTaskState: ACTIVE
 
-		taskView.inProgressCheckbox.setEnabled wrikeUtils.currentUserIsResponsibleForTask task
-		taskView.inProgressCheckbox.setChecked (task.get 'title').indexOf(inprogressTagText) >= 0
+  class CustomStates
+    taistApi = null
 
-		$('td.info-importance').after taskView.inProgressCheckbox.contents
+    states: null
+    statesGroupName: null
 
-	renderFilterPanel = ->
-		filterPanel = new WrikeFilterPanel 'In progress'
-		filterPanel.addCheckbox new WrikeFilterCheckbox "In progress", inprogressTagText
-		filterPanel.waitToRender()
+    @setTaistApi: (ta) ->
+      taistApi = ta
+      taistApi.hash.useHashchangeEvent = false
 
-	class WrikeCheckbox
-		checkbox: null
-		contents: null
-		constructor: (text, onCheckedChange)->
-			@contents = $("""<div style="padding-left:10px;"><div  class="x-form-check-wrap"  ><div class="x-form-checkbox-inner"><input type="checkbox" autocomplete="off" class=" x-form-checkbox x-form-field"></div><label for="ext-inprogress" class="x-form-cb-label">#{text}</label></div></div>""")
-			@checkbox = @contents.find 'input'
-			@form = @contents.find '.x-form-checkbox-inner'
-			@checkbox.click =>
-				onCheckedChange @isChecked()
+    constructor: (@statesGroupName, @states) ->
 
-		isChecked: -> @checkbox.is ":checked"
-		setEnabled: (value)->
-			if value
-				@checkbox.removeAttr 'disabled'
-			else
-				@checkbox.attr 'disabled', 'disabled'
-		setChecked: (value) ->
-			if value
-				@checkbox.attr 'checked', 'checked'
-			else
-				@checkbox.removeAttr 'checked'
+    render: ->
+      buttonsBar = new ButtonsBar @states
+      buttonsBar.renderOnCurrentTaskChange()
 
-			@form.toggleClass 'x-form-check-checked', value
+      filterPanel = new FilterPanel @statesGroupName, @states
+      filterPanel.renderOnFiltersAppear()
 
-	class WrikeFilterCheckbox
-		constructor: (@caption, @tagText) ->
-			@contents = $ """<div style="padding-left:10px;"></div>"""
-			container = $ """<div class="x-form-check-wrap"></div>"""
+    class ButtonsBar
+      constructor: (@states) ->
+      _containerSelector: '.wspace-task-widgets-title-view'
+      _buttonsToolbarId: 'wrike-taist-toolbar'
+      _originalToolbarSelector: '.wspace-task-settings-bar'
 
-			form = $ "<div></div>",
-				class: "x-form-checkbox-inner"
+      renderOnCurrentTaskChange: ->
+        setTaskIfNotNull = (task) =>
+          if task?
+            @_setTask task
+        wrikeUtils.onCurrentTaskChange setTaskIfNotNull
+        wrikeUtils.onCurrentTaskSave setTaskIfNotNull
 
-			@checkbox = $ "<input>"
-				type: "checkbox"
-				autocomplete: "off"
-				class: "x-form-checkbox x-form-field",
-				click: =>
-					form.toggleClass "x-form-check-checked"
-					@updateQuery()
+      _setTask: (task) ->
+        @_cleanButtons()
 
-			label = $ "<label></label>",
-				class: "x-form-cb-label"
-				text: @caption
+        currentState = extractStateFromInput @_getTitleInput(), @states
 
-			form.append @checkbox
-			container.append form, label
-			@contents.append container
+        if currentState.possibleTaskStates.indexOf(task.data.state) >= 0
+          if @_stateIsVisibleToMe task, currentState
+            @_renderButtons currentState
 
-		updateQuery: ->
-			query = Wrike.env.FILTERS.get 'text'
-			if @checked()
-				query.push @tagText
-			else
-				query = (text for text in query when text != @tagText)
-			BUS.fireEvent 'list.filter.changed',
-				text: query
+      _cleanButtons: ->
+        ($ '#' + @_buttonsToolbarId).remove()
 
-		checked: -> @checkbox.is ":checked"
+      _stateIsVisibleToMe: (task, state) -> ((wrikeUtils.myTaskRoles task).indexOf state.visibleTo) > -1
 
-	class WrikeFilterPanel
-		template: null
-		checkboxContainer: null
-		_parentClass: 'w2-folder-listview-filters-filterspane-body'
-		_getParent: -> ($ '.' + @_parentClass)
-		constructor: (title)->
-			@contents = $("""<div class="w2-folder-listview-filters-filterpane">
-																																					<div class="w2-folder-listview-filters-filterpane-title x-unselectable">#{title}</div>
-																																					<div  class="x-form-check-group x-column-layout-ct x-form-field w2-folder-listview-filters-filterpane-chgroup">
-																																						<div class="x-column-inner" id="ext-gen1145" style="width: 170px;">
-																																							<div  class=" x-column" style="width: 170px;">
-																																								<div class="x-form-item  x-hide-label" tabindex="-1"></div>
-																																								<div class="x-form-clear-left"></div>
-																																							</div>
-																																						</div>
-																																					</div>
-																																				</div>""")
-			@checkboxContainer = @contents.find ".x-form-item"
+      _renderButtonsToolbar: ->
+        originalToolbar = $ @_originalToolbarSelector
+        buttonsToolbar = (originalToolbar).clone()
+        buttonsToolbar.empty()
+        buttonsToolbar.attr 'id', @_buttonsToolbarId
+        originalToolbar.after buttonsToolbar
 
-		waitToRender: ->
-			that = @
-			taistApi.aspect.after Ext.Panel, "afterRender", ->
-				if @bodyCssClass == that._parentClass
-					that._render()
+        return buttonsToolbar
 
-			@_render()
+      _renderButtons: (state) ->
+        buttonsToolbar = @_renderButtonsToolbar()
+        if state.next?
+          for nextStateName in state.next
+            nextStateButton = @_createStateButton nextStateName
+            buttonsToolbar.append nextStateButton
 
-		_render: -> @_getParent().append @contents
+      _createStateButton: (stateName) ->
+        state = @states[stateName]
+        button = $ '<a></a>',
+          "class": "wspace-task-settings-button taist-wrike-approval-button"
+          text: state.buttonTitle
+          id: 'taist-wrike-approval-' + stateName
+          click: =>
+            @_applyStateToCurrentTask state
+            false
 
-		addCheckbox: (checkbox) -> @checkboxContainer.append checkbox.contents
+      _applyStateToCurrentTask: (state) ->
+        applyStateToInput state, @states, @_getTitleInput()
+        if state.targetTaskState? and wrikeUtils.currentTask().data.state != state.targetTaskState
+          setTimeout (->
+            #emulate clicking on state checkbox:
 
-	wrikeUtils =
-		getCurrentUserId: -> w2.user.getUid()
+            #open state dropdown:
+            $('.wspace-task-widgets-status-view').click()
 
-		currentUserIsResponsibleForTask: (task) -> task.data["responsibleList"].indexOf(@getCurrentUserId()) >= 0
+            #click on target state checkbox
+            $(".status-icon-#{state.targetTaskState} span").click()
+          ), 500
 
-		getCurrentTaskView: -> window.Ext.ComponentMgr.get ($('.taskView').attr 'id')
+      _getTitleInput: -> $ "#{@_containerSelector} textarea"
 
-		getCurrentTask: -> @getCurrentTaskView()?["record"]
+    extractStateFromInput = (input, states) ->
+      lowerCasedInputText = input.val().toLowerCase()
+      for stateName, state of states
+        if (lowerCasedInputText.indexOf getNormalizedStatePrefix state) >= 0
+          return state
 
-		onTaskViewRender: (callback) ->
-			cb = (taskView) -> callback taskView["record"], taskView
-			taskViewClass = window.w2.folders.info.task.View
-			taistApi.aspect.before taskViewClass, "showRecord", ->	cb @
+      return states.initial
 
-			currentTaskView = @getCurrentTaskView()
-			if currentTaskView?
-				cb currentTaskView
+    applyStateToInput = (state, states, input) ->
+      currentText = input.val()
+      window.curInput = input
+      input.val (applyStateToText state, states, currentText)
 
-		onTaskChange: (callback) -> taistApi.aspect.after Wrike.Task, "getChanges", (-> callback @)
+      # Emulate pressing enter on task title input to trigger input change event
+      input.focus()
+      $.event.trigger
+        type: 'keypress'
+        which: 13
+      input.blur()
 
-	return {start}
+    getNormalizedStatePrefix = (state) -> $.trim (getTitlePrefix state).toLowerCase()
+
+    applyStateToText = (statetoApply, states, currentText) ->
+      for stateName, state of states
+        for removedPrefix in [(getTitlePrefix state), (getNormalizedStatePrefix state)]
+          currentText = currentText.replace removedPrefix, ''
+
+      if statetoApply?
+        currentText = (getTitlePrefix statetoApply) + currentText
+
+      return currentText
+
+    getTitlePrefix = (state) -> "[#{state.title}] "
+
+    class FilterPanel
+      states: null
+      filterGroupTitle: null
+      constructor: (@filterGroupTitle, @states) ->
+
+      _filtersPanelSelector: '.wspace-folder-filterpanel-body'
+      _filterGroupClass: "wspace-folder-filterpanel-filterpane wspace-tree-branch-root"
+      _filtersContainerClass: 'wspace-tree-branch'
+      _filterSelectedClass: 'x-btn-pressed'
+      _filtersFoldButtonClass: 'wspace-tree-foldButton'
+      _filtersFoldClass: 'wspace-tree-folded'
+      _searchFieldSelector: '.wspace-folder-mainbar .wrike-field-search input'
+
+      _filters: null
+
+      renderOnFiltersAppear: ->
+        taistApi.wait.elementRender @_filtersPanelSelector, (filtersPanel) =>
+          filtersContainer = @_renderFiltersContainer filtersPanel
+          @_renderFilters filtersContainer
+
+          @_setCurrentState()
+
+      _renderFiltersContainer: (filtersPanel) ->
+        filtersGroup = @_createFiltersGroupDom()
+
+        previousFiltersGroup = filtersPanel.find(@_getSelectorFromClass @_filterGroupClass).last()
+        previousFiltersGroup.after filtersGroup
+
+        foldButton = filtersGroup.find @_getSelectorFromClass @_filtersFoldButtonClass
+        foldButton.click =>
+          filtersGroup.toggleClass @_filtersFoldClass
+
+        return filtersGroup.find (@_getSelectorFromClass @_filtersContainerClass)
+
+      _renderFilters: (filtersContainer) ->
+        @_filters = []
+        for _, state of @states
+          if state.title?
+            filter = @_renderFilter state
+
+            @_filters.push filter
+            filtersContainer.append filter
+
+      _setCurrentState: ->
+        @_updateFilters (extractStateFromInput @_getSearchField(), @states), false
+
+      _createFiltersGroupDom: -> $ """
+  <div class="#{@_filterGroupClass}">
+    <div class="wspace-tree-plate">
+      <div class="#{@_filtersFoldButtonClass}"></div>
+      <div class="wspace-tree-title-root">#{@filterGroupTitle}</div>
+    </div>
+    <div class="#{@_filtersContainerClass}">
+    </div>
+  </div>
+  """
+      _getSelectorFromClass: (classString) ->
+        singleSelectorsArray = (("." + singleClass) for singleClass in classString.split ' ')
+        return singleSelectorsArray.join()
+
+      _renderFilter: (state) ->
+        filter = @_createFilterDom state.title
+
+        filter.click =>
+          targetState =
+            if filter.hasClass @_filterSelectedClass
+              null
+            else
+              state
+
+          @_updateFilters targetState, true
+
+          return false
+
+      _createFilterDom: (filterTitle) -> $ """<a class="wrike-button-checkbox x-btn-noicon" href="#" style="width: auto;">#{filterTitle}</a>"""
+
+      _updateFilters: (state, needUpdateSearchField) ->
+        for filter in @_filters
+          filter.toggleClass @_filterSelectedClass, state?.title is filter.text()
+
+        if needUpdateSearchField
+          applyStateToInput state, @states, @_getSearchField()
+
+      _getSearchField: -> $ @_searchFieldSelector
+
+    wrikeUtils =
+      me: -> $wrike.user.getUid()
+
+      myTaskRoles: (task) ->
+        roleConditions =
+          owner: => task.data['responsibleList'].indexOf(@me()) >= 0
+          author: => (task.get 'author') is @me()
+
+        return (role for role,condition of roleConditions when condition())
+
+      currentTaskView: ->
+        taskViewId = $('.wspace-task-view').attr 'id'
+        if taskViewId?
+          window.Ext.ComponentMgr.get taskViewId
+
+      currentTask: ->
+        window.ct = @currentTaskView()?['record']
+
+        @currentTaskView()?['record']
+
+      onCurrentTaskChange: (callback) ->
+        taistApi.wait.change (=> @currentTask()), (task) ->
+          if task?
+            taistApi.wait.once (-> task.data.title?), ->
+              callback task
+
+      onCurrentTaskSave: (callback) ->
+        taistApi.aspect.after $wrike.record.Base.prototype, 'getChanges', ->
+          if @ is wrikeUtils.currentTask()
+            callback @
 
 
+  {start}
