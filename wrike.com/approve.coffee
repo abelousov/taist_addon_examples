@@ -258,10 +258,7 @@
         if taskViewId?
           window.Ext.ComponentMgr.get taskViewId
 
-      currentTask: ->
-        window.ct = @currentTaskView()?['record']
-
-        @currentTaskView()?['record']
+      currentTask: -> @currentTaskView()?['record']
 
       onCurrentTaskChange: (callback) ->
         taistApi.wait.change (=> @currentTask()), (task) ->

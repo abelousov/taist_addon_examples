@@ -384,9 +384,8 @@
         }
       },
       currentTask: function() {
-        var _ref, _ref1;
-        window.ct = (_ref = this.currentTaskView()) != null ? _ref['record'] : void 0;
-        return (_ref1 = this.currentTaskView()) != null ? _ref1['record'] : void 0;
+        var _ref;
+        return (_ref = this.currentTaskView()) != null ? _ref['record'] : void 0;
       },
       onCurrentTaskChange: function(callback) {
         return taistApi.wait.change(((function(_this) {
