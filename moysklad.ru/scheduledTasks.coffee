@@ -17,13 +17,17 @@
 
   createGeneralCalendarDom = ->
     #TODO: create DOM element with calendar here
+    $ '<H1>NEW CONTENT HERE</H1>'
 
   moyskladUiUtils =
-    _mainContainerSelector: '.lognex-ScreenWrapper'
+    _getMainContainer: ->
+      #on most pages '.lognex-ScreenWrapper' exists but on /#dashboard other selector is used
+      ($ '.lognex-ScreenWrapper').add ($ '.l-fixed-width-page')
     topMenu:
       addMenuItemWithoutSubItems: (itemName, contentRenderer) ->
         @_createTopMenuItem itemName, (mainContainer) ->
           mainContent = contentRenderer()
+          mainContainer.empty()
           mainContainer.append mainContent
 
       _createTopMenuItem: (itemName, itemSelectHandler) ->
@@ -32,15 +36,15 @@
           newMenuItem.click =>
             @_unselectMenuItems @_getAllMenuItems()
             @_menuItemToggleSelected newMenuItem, true
-            itemSelectHandler ($ moyskladUiUtils._mainContainerSelector)
+            @_clearSubMenu()
+            itemSelectHandler moyskladUiUtils._getMainContainer()
 
       _renderNewTopMenuItem: (topMenu, itemName) ->
-        @_unselectCustomMenuItemsOnNativeMenuItemsClick()
-        menuItem = $ """<td class="#{@_topMenuItemClass}"><span title="#{itemName}" class="lognex-SpanHyperlink" tabindex="0"><a>#{itemName}</a></span></td>"""
+        @_processNativeMenuItemsClickBeforeAddingAnyCustomItem()
+
+        menuItem = $ """<td class="#{@_topMenuItemClass} #{@_customMenuItemClass}"><span title="#{itemName}" class="lognex-SpanHyperlink" tabindex="0"><a>#{itemName}</a></span></td>"""
         itemsSeparator = $ '<td class="topMenu-separator"></td>'
         topMenu.append menuItem, itemsSeparator
-
-        @_customMenuItems.push menuItem
 
         return menuItem
 
@@ -48,19 +52,31 @@
         menuItem.toggleClass @_selectedTopMenuItemClass, selected
         menuItem.toggleClass @_topMenuItemClass, !selected
 
-      _unselectCustomMenuItemsOnNativeMenuItemsClick: ->
+      _processNativeMenuItemsClickBeforeAddingAnyCustomItem: ->
         if not @_nativeMenuItemsClickProcessed
           @_nativeMenuItemsClickProcessed = true
 
           #suppose that there are only native items now
           nativeMenuItems = @_getAllMenuItems()
           nativeMenuItems.click =>
-            @_unselectMenuItems @_customMenuItems
+            @_unselectCustomMenuItems()
+            @_restoreSubMenu()
+
+      _unselectCustomMenuItems: ->
+        @_menuItemToggleSelected ($ '.' + @_customMenuItemClass), no
 
       _topMenuItemClass: 'topMenuItem'
       _selectedTopMenuItemClass: 'topMenuItem-selected'
-      _customMenuItems: []
+      _customMenuItemClass: 'topMenuItemFromAddon'
       _getAllMenuItems: -> ($ '.' + @_topMenuItemClass).add($ '.' + @_selectedTopMenuItemClass)
+
+      _clearSubMenu: ->
+        #hide native subMenu as it will be reused in native menu item
+        @_getSubMenu().hide()
+
+      _restoreSubMenu: -> @_getSubMenu().show()
+
+      _getSubMenu: -> $ '.subMenu'
 
       _unselectMenuItems: (menuItems) ->
         (@_menuItemToggleSelected ($ menuItem), no) for menuItem in menuItems

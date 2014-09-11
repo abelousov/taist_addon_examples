@@ -13,14 +13,19 @@
     return moyskladUiUtils.topMenu.addMenuItemWithoutSubItems('Календарь', createGeneralCalendarDom);
   };
   waitDrawDocumentCalendar = function() {};
-  createGeneralCalendarDom = function() {};
+  createGeneralCalendarDom = function() {
+    return $('<H1>NEW CONTENT HERE</H1>');
+  };
   moyskladUiUtils = {
-    _mainContainerSelector: '.lognex-ScreenWrapper',
+    _getMainContainer: function() {
+      return ($('.lognex-ScreenWrapper')).add($('.l-fixed-width-page'));
+    },
     topMenu: {
       addMenuItemWithoutSubItems: function(itemName, contentRenderer) {
         return this._createTopMenuItem(itemName, function(mainContainer) {
           var mainContent;
           mainContent = contentRenderer();
+          mainContainer.empty();
           return mainContainer.append(mainContent);
         });
       },
@@ -32,41 +37,54 @@
             return newMenuItem.click(function() {
               _this._unselectMenuItems(_this._getAllMenuItems());
               _this._menuItemToggleSelected(newMenuItem, true);
-              return itemSelectHandler($(moyskladUiUtils._mainContainerSelector));
+              _this._clearSubMenu();
+              return itemSelectHandler(moyskladUiUtils._getMainContainer());
             });
           };
         })(this));
       },
       _renderNewTopMenuItem: function(topMenu, itemName) {
         var itemsSeparator, menuItem;
-        this._unselectCustomMenuItemsOnNativeMenuItemsClick();
-        menuItem = $("<td class=\"" + this._topMenuItemClass + "\"><span title=\"" + itemName + "\" class=\"lognex-SpanHyperlink\" tabindex=\"0\"><a>" + itemName + "</a></span></td>");
+        this._processNativeMenuItemsClickBeforeAddingAnyCustomItem();
+        menuItem = $("<td class=\"" + this._topMenuItemClass + " " + this._customMenuItemClass + "\"><span title=\"" + itemName + "\" class=\"lognex-SpanHyperlink\" tabindex=\"0\"><a>" + itemName + "</a></span></td>");
         itemsSeparator = $('<td class="topMenu-separator"></td>');
         topMenu.append(menuItem, itemsSeparator);
-        this._customMenuItems.push(menuItem);
         return menuItem;
       },
       _menuItemToggleSelected: function(menuItem, selected) {
         menuItem.toggleClass(this._selectedTopMenuItemClass, selected);
         return menuItem.toggleClass(this._topMenuItemClass, !selected);
       },
-      _unselectCustomMenuItemsOnNativeMenuItemsClick: function() {
+      _processNativeMenuItemsClickBeforeAddingAnyCustomItem: function() {
         var nativeMenuItems;
         if (!this._nativeMenuItemsClickProcessed) {
           this._nativeMenuItemsClickProcessed = true;
           nativeMenuItems = this._getAllMenuItems();
           return nativeMenuItems.click((function(_this) {
             return function() {
-              return _this._unselectMenuItems(_this._customMenuItems);
+              _this._unselectCustomMenuItems();
+              return _this._restoreSubMenu();
             };
           })(this));
         }
       },
+      _unselectCustomMenuItems: function() {
+        return this._menuItemToggleSelected($('.' + this._customMenuItemClass), false);
+      },
       _topMenuItemClass: 'topMenuItem',
       _selectedTopMenuItemClass: 'topMenuItem-selected',
-      _customMenuItems: [],
+      _customMenuItemClass: 'topMenuItemFromAddon',
       _getAllMenuItems: function() {
         return ($('.' + this._topMenuItemClass)).add($('.' + this._selectedTopMenuItemClass));
+      },
+      _clearSubMenu: function() {
+        return this._getSubMenu().hide();
+      },
+      _restoreSubMenu: function() {
+        return this._getSubMenu().show();
+      },
+      _getSubMenu: function() {
+        return $('.subMenu');
       },
       _unselectMenuItems: function(menuItems) {
         var menuItem, _i, _len, _results;
