@@ -1,26 +1,28 @@
 ->
   taistApi = null
-  moyskladUiUtils = null
+  moyskladUtils = null
 
   start = (_taistApi) ->
     taistApi = _taistApi
 
-    initFullCalendar()
+    loadFullCalendar()
 
     drawGeneralCalendarTab()
     waitDrawDocumentCalendar()
 
   drawGeneralCalendarTab = ->
-    moyskladUiUtils.topMenu.addMenuItemWithoutSubItems 'Календарь', createGeneralCalendarDom
+    moyskladUtils.topMenu.addMenuItemWithoutSubItems 'Календарь', createGeneralCalendarDom
 
   waitDrawDocumentCalendar = ->
+    moyskladUtils.currentEntity.onDisplay (entityId, mainContainer) ->
+      (new InDocCalendar entityId, mainContainer).render()
 
   createGeneralCalendarDom = (mainContainer) ->
     calendar = $ "<div></div>"
 
     #calendar element should be appended to the dom before rendering the calendar
     mainContainer.append calendar
-  
+
     calendar.fullCalendar {
       header:
         left: 'today prev,next'
@@ -30,10 +32,37 @@
       defaultView: 'agendaWeek'
     }
 
-  moyskladUiUtils =
+  class InDocCalendar
+    _entityId: null
+    _mainContainer: null
+    constructor: (@_entityId, @_mainContainer) ->
+
+    render: ->
+      addonContentsTable = @_mainContainer.children()
+      addonContentsTable.addClass 'addon-scheduled-tasks-mainContainer-contents'
+      taskListContainer = $ '<div class="addon-scheduled-tasks-mainContainer-contents addon-scheduled-tasks-taskList"></div>'
+      taskListContainer.append @_createCalendarToggleButton()
+      @_mainContainer.append taskListContainer
+
+    _createCalendarToggleButton: ->
+      return moyskladUtils.uiPrimitives.button
+        caption: 'Календарь'
+        classes: 'addon-scheduled-tasks-calendar-toggle-button'
+        click: =>
+          @_toggleCalendarDisplay()
+
+    _toggleCalendarDisplay: ->
+
+  moyskladUtils =
     _getMainContainer: ->
       #on most pages '.lognex-ScreenWrapper' exists but on /#dashboard other selector is used
-      ($ '.lognex-ScreenWrapper').add ($ '.l-fixed-width-page')
+      jqResult = ($ '.lognex-ScreenWrapper').add ($ '.l-fixed-width-page')
+
+      return (
+        if jqResult.length > 0
+          $ jqResult[0]
+        else null
+      )
     topMenu:
       addMenuItemWithoutSubItems: (itemName, contentRenderer) ->
         @_createTopMenuItem itemName, (mainContainer) ->
@@ -47,7 +76,7 @@
             @_unselectMenuItems @_getAllMenuItems()
             @_menuItemToggleSelected newMenuItem, true
             @_clearSubMenu()
-            itemSelectHandler moyskladUiUtils._getMainContainer()
+            itemSelectHandler @_createNewMainContainer()
 
       _renderNewTopMenuItem: (topMenu, itemName) ->
         @_processNativeMenuItemsClickBeforeAddingAnyCustomItem()
@@ -61,6 +90,22 @@
       _menuItemToggleSelected: (menuItem, selected) ->
         menuItem.toggleClass @_selectedTopMenuItemClass, selected
         menuItem.toggleClass @_topMenuItemClass, !selected
+
+      _createNewMainContainer: ->
+        #mainContainer and its parent element are cached for each sub menu item, so we have to replace their parent
+        elementToReplace = moyskladUtils._getMainContainer().parent().parent()
+
+        parent = elementToReplace.parent()
+
+        replacement = elementToReplace.clone()
+        elementToReplace.hide()
+
+        #each of elements has only one child - use this to find new mainContainer
+        newMainContainer = replacement.children().children()
+        newMainContainer.empty()
+
+        parent.append replacement
+        return newMainContainer
 
       _processNativeMenuItemsClickBeforeAddingAnyCustomItem: ->
         if not @_nativeMenuItemsClickProcessed
@@ -78,20 +123,65 @@
       _topMenuItemClass: 'topMenuItem'
       _selectedTopMenuItemClass: 'topMenuItem-selected'
       _customMenuItemClass: 'topMenuItemFromAddon'
-      _getAllMenuItems: -> ($ '.' + @_topMenuItemClass).add($ '.' + @_selectedTopMenuItemClass)
+      _getAllMenuItems: ->
+        ($ '.' + @_topMenuItemClass).add($ '.' + @_selectedTopMenuItemClass)
 
       _clearSubMenu: ->
         #hide native subMenu as it will be reused in native menu item
         @_getSubMenu().hide()
 
-      _restoreSubMenu: -> @_getSubMenu().show()
+        @_resetCurrentNativeSubMenuItem()
 
-      _getSubMenu: -> $ '.subMenu'
+
+      _restoreSubMenu: ->
+        @_getSubMenu().show()
+
+      _getSubMenu: ->
+        $ '.subMenu'
+
+      _resetCurrentNativeSubMenuItem: ->
+        activeItem = @_getSubMenu().find ".active"
+
+        #remove selection from native subMenu items
+        activeItem.removeClass "active"
+
+        activeItem.one "click", ->
+          currentHash = location.hash
+          location.hash = '#unexistingHashForRefresh'
+          setTimeout (
+            ->
+              taistApi.log "force updating hash"
+              location.hash = currentHash
+          ), 100
+
 
       _unselectMenuItems: (menuItems) ->
         (@_menuItemToggleSelected ($ menuItem), no) for menuItem in menuItems
 
-  initFullCalendar = ->
+    currentEntity:
+      onDisplay: (handler) ->
+        idRegExp = new RegExp '\\?id=[\\w\\-]*$'
+        taistApi.hash.when idRegExp, (newHash) =>
+          idSubstring = (idRegExp.exec newHash)[0]
+          prefixLength = '?id='.length
+          entityId = idSubstring.substring prefixLength
+
+          mainContainerRenderedCondition = ->
+            moyskladUtils._getMainContainer()?.children('table').length > 0
+
+          taistApi.wait.once mainContainerRenderedCondition, ->
+            handler entityId, moyskladUtils._getMainContainer()
+
+    uiPrimitives:
+      button: (options) ->
+        button = $ "<div role=\"button\" class=\"b-popup-button b-popup-button-enabled b-popup-button-gray #{options.classes}\" tabindex=\"0\">
+          <table><colgroup><col></colgroup><tbody><tr><td></td><td><span class=\"text\">#{options.caption}</span></td></tr></tbody></table>
+        </div>"
+
+        if options.click?
+          button.click options.click
+
+  loadFullCalendar = ->
     #adding FullCalendar and Moment required by it
     `
       //! moment.js

@@ -1,5 +1,11 @@
+.addon-scheduled-tasks-mainContainer-contents {
+  display: inline-block;
+  vertical-align: top;
+}
 
-
+.addon-scheduled-tasks-calendar-toggle-button {
+  vertical-align: middle;
+}
 
 
 /* FullCalendar styles*/
