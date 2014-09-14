@@ -32,7 +32,7 @@
     #calendar element should be appended to the dom before rendering the calendar
     mainContainer.append calendarElement
 
-    calendars.createGeneral calendarElement
+    Calendar.createGeneral calendarElement
 
   class InDocCalendar
     _entityId: null
@@ -81,7 +81,7 @@
 
       createHandler = (startMoment, endMoment) => @_createNewTask startMoment, endMoment
 
-      @_calendar = calendars.createInDoc @_calendarElement, createHandler
+      @_calendar = Calendar.createInDoc @_calendarElement, createHandler
 
       @_calendarIsDisplayed = no
       @_calendarElement.hide()
@@ -94,11 +94,11 @@
 
       @_calendar.do 'unselect'
 
-  calendars =
+  class Calendar
     _screenBorderMargin: 20
-    createGeneral: (domElement) ->
+    @createGeneral: (domElement) ->
       @_create domElement, {}
-    createInDoc: (domElement, create) ->
+    @createInDoc: (domElement, create) ->
       @_create domElement, {
         selectable: true
         selectHelper: true
@@ -107,27 +107,24 @@
         editable: true
       }
 
-    _create: (domElement, additionalOptions) ->
-      calendar = @_constructCalendarWrapper domElement
+    @_create: (domElement, additionalOptions) -> new Calendar domElement, additionalOptions
 
+    _domElement: null
+
+    constructor: (@_domElement, additionalOptions) ->
       fullOptions = $.extend @_getBaseOptions(), additionalOptions
-      calendar.do fullOptions
+      @do fullOptions
+      @adjustToScreenHeight()
 
-      @_adjustToScreenHeight calendar
+    do: ->
+      @_domElement.fullCalendar.apply @_domElement, arguments
+    scrollTo: ->
+      ($ 'body').scrollTop @_domElement.offset().top - @_screenBorderMargin
 
-      return calendar
-
-    _constructCalendarWrapper: (domElement) ->
-      do: ->
-        domElement.fullCalendar.apply domElement, arguments
-      scrollTo: ->
-        ($ 'body').scrollTop domElement.offset().top - @_screenBorderMargin
-
-    _adjustToScreenHeight: (calendar) ->
+    adjustToScreenHeight: ->
       maxCalendarHeight = window.innerHeight - 2 * @_screenBorderMargin
-      if domElement.height() > maxCalendarHeight
-        calendar.do 'option', 'height', maxCalendarHeight
-
+      if @_domElement.height() > maxCalendarHeight
+        @do 'option', 'height', maxCalendarHeight
 
     _getBaseOptions: ->
       header:
