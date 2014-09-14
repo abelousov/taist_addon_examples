@@ -1,12 +1,19 @@
-.addon-scheduled-tasks-mainContainer-contents {
+.addonScheduledTasks-inDocTopLevelElements {
   display: inline-block;
   vertical-align: top;
 }
 
-.addon-scheduled-tasks-calendar-toggle-button {
+.addonScheduledTasks-calendarToggleButton {
   vertical-align: middle;
 }
 
+.addonScheduledTasks-inDocCalendar {
+  margin-bottom: 40px;
+}
+
+.addonScheduledTasks-taskList {
+  margin-left: 20px;
+}
 
 /* FullCalendar styles*/
 

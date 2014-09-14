@@ -35,23 +35,65 @@
   class InDocCalendar
     _entityId: null
     _mainContainer: null
+    _calendarElement: null
+    _calendarIsDisplayed: null
+    _mainContentsTable: null
+    _screenBorderMargin: 15
     constructor: (@_entityId, @_mainContainer) ->
 
     render: ->
-      addonContentsTable = @_mainContainer.children()
-      addonContentsTable.addClass 'addon-scheduled-tasks-mainContainer-contents'
-      taskListContainer = $ '<div class="addon-scheduled-tasks-mainContainer-contents addon-scheduled-tasks-taskList"></div>'
+      @_mainContentsTable = @_mainContainer.children()
+      @_mainContentsTable.addClass 'addonScheduledTasks-inDocTopLevelElements'
+      taskListContainer = $ '<div class="addonScheduledTasks-inDocTopLevelElements addonScheduledTasks-taskList"></div>'
       taskListContainer.append @_createCalendarToggleButton()
       @_mainContainer.append taskListContainer
 
     _createCalendarToggleButton: ->
       return moyskladUtils.uiPrimitives.button
         caption: 'Календарь'
-        classes: 'addon-scheduled-tasks-calendar-toggle-button'
+        classes: 'addonScheduledTasks-calendarToggleButton'
         click: =>
           @_toggleCalendarDisplay()
 
     _toggleCalendarDisplay: ->
+      if not @_calendarElement?
+        @_renderCalendar()
+
+      @_calendarIsDisplayed = not @_calendarIsDisplayed
+      @_calendarElement.toggle()
+
+      if @_calendarIsDisplayed
+        ($ 'body').scrollTop @_calendarElement.offset().top - @_screenBorderMargin
+
+    _renderCalendar: ->
+      @_calendarElement = $ '<div class="addonScheduledTasks-inDocCalendar"></div>'
+      @_calendarElement.width @_mainContentsTable.width()
+
+      # wrapper main contents for correct positioning:
+      # calendar should be on top of other contents,
+      # but task list should be always in the top right part
+      mainContentsWrapper = $ '<div class="addonScheduledTasks-inDocTopLevelElements addonScheduledTasks-mainContentsWrapper"></div>'
+      mainContentsWrapper.append @_calendarElement
+      mainContentsWrapper.append @_mainContentsTable
+      @_mainContainer.prepend mainContentsWrapper
+
+      @_calendarElement.fullCalendar({
+          header:
+            left: 'today prev, next'
+            center: 'title'
+            right: 'agendaWeek, month'
+
+          defaultView: 'agendaWeek'
+
+        }
+      )
+
+      maxCalendarHeight = window.innerHeight - 2 * @_screenBorderMargin
+      if @_calendarElement.height() > maxCalendarHeight
+        @_calendarElement.fullCalendar 'option', 'height', maxCalendarHeight
+
+      @_calendarIsDisplayed = no
+      @_calendarElement.hide()
 
   moyskladUtils =
     _getMainContainer: ->
@@ -175,8 +217,8 @@
     uiPrimitives:
       button: (options) ->
         button = $ "<div role=\"button\" class=\"b-popup-button b-popup-button-enabled b-popup-button-gray #{options.classes}\" tabindex=\"0\">
-          <table><colgroup><col></colgroup><tbody><tr><td></td><td><span class=\"text\">#{options.caption}</span></td></tr></tbody></table>
-        </div>"
+                  <table><colgroup><col></colgroup><tbody><tr><td></td><td><span class=\"text\">#{options.caption}</span></td></tr></tbody></table>
+                </div>"
 
         if options.click?
           button.click options.click

@@ -35,16 +35,24 @@
 
     InDocCalendar.prototype._mainContainer = null;
 
+    InDocCalendar.prototype._calendarElement = null;
+
+    InDocCalendar.prototype._calendarIsDisplayed = null;
+
+    InDocCalendar.prototype._mainContentsTable = null;
+
+    InDocCalendar.prototype._screenBorderMargin = 15;
+
     function InDocCalendar(_entityId, _mainContainer) {
       this._entityId = _entityId;
       this._mainContainer = _mainContainer;
     }
 
     InDocCalendar.prototype.render = function() {
-      var addonContentsTable, taskListContainer;
-      addonContentsTable = this._mainContainer.children();
-      addonContentsTable.addClass('addon-scheduled-tasks-mainContainer-contents');
-      taskListContainer = $('<div class="addon-scheduled-tasks-mainContainer-contents addon-scheduled-tasks-taskList"></div>');
+      var taskListContainer;
+      this._mainContentsTable = this._mainContainer.children();
+      this._mainContentsTable.addClass('addonScheduledTasks-inDocTopLevelElements');
+      taskListContainer = $('<div class="addonScheduledTasks-inDocTopLevelElements addonScheduledTasks-taskList"></div>');
       taskListContainer.append(this._createCalendarToggleButton());
       return this._mainContainer.append(taskListContainer);
     };
@@ -52,7 +60,7 @@
     InDocCalendar.prototype._createCalendarToggleButton = function() {
       return moyskladUtils.uiPrimitives.button({
         caption: 'Календарь',
-        classes: 'addon-scheduled-tasks-calendar-toggle-button',
+        classes: 'addonScheduledTasks-calendarToggleButton',
         click: (function(_this) {
           return function() {
             return _this._toggleCalendarDisplay();
@@ -61,7 +69,40 @@
       });
     };
 
-    InDocCalendar.prototype._toggleCalendarDisplay = function() {};
+    InDocCalendar.prototype._toggleCalendarDisplay = function() {
+      if (this._calendarElement == null) {
+        this._renderCalendar();
+      }
+      this._calendarIsDisplayed = !this._calendarIsDisplayed;
+      this._calendarElement.toggle();
+      if (this._calendarIsDisplayed) {
+        return ($('body')).scrollTop(this._calendarElement.offset().top - this._screenBorderMargin);
+      }
+    };
+
+    InDocCalendar.prototype._renderCalendar = function() {
+      var mainContentsWrapper, maxCalendarHeight;
+      this._calendarElement = $('<div class="addonScheduledTasks-inDocCalendar"></div>');
+      this._calendarElement.width(this._mainContentsTable.width());
+      mainContentsWrapper = $('<div class="addonScheduledTasks-inDocTopLevelElements addonScheduledTasks-mainContentsWrapper"></div>');
+      mainContentsWrapper.append(this._calendarElement);
+      mainContentsWrapper.append(this._mainContentsTable);
+      this._mainContainer.prepend(mainContentsWrapper);
+      this._calendarElement.fullCalendar({
+        header: {
+          left: 'today prev, next',
+          center: 'title',
+          right: 'agendaWeek, month'
+        },
+        defaultView: 'agendaWeek'
+      });
+      maxCalendarHeight = window.innerHeight - 2 * this._screenBorderMargin;
+      if (this._calendarElement.height() > maxCalendarHeight) {
+        this._calendarElement.fullCalendar('option', 'height', maxCalendarHeight);
+      }
+      this._calendarIsDisplayed = false;
+      return this._calendarElement.hide();
+    };
 
     return InDocCalendar;
 
