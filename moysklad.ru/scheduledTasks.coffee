@@ -1,14 +1,23 @@
 ->
   taistApi = null
   moyskladUtils = null
+  taskStorage = null
 
   start = (_taistApi) ->
     taistApi = _taistApi
+    taistApi.haltOnError = true
+
+    taistApi.wait.once (-> getCompanyKey().length > 0), ->
+      taistApi.companyData.setCompanyKey getCompanyKey()
+      taskStorage.init()
 
     loadFullCalendar()
 
     drawGeneralCalendarTab()
     waitDrawDocumentCalendar()
+
+  getCompanyKey = -> $('.companyName>span').text()
+
 
   drawGeneralCalendarTab = ->
     moyskladUtils.topMenu.addMenuItemWithoutSubItems 'Календарь', createGeneralCalendarDom
@@ -18,19 +27,12 @@
       (new InDocCalendar entityId, mainContainer).render()
 
   createGeneralCalendarDom = (mainContainer) ->
-    calendar = $ "<div></div>"
+    calendarElement = $ "<div></div>"
 
     #calendar element should be appended to the dom before rendering the calendar
-    mainContainer.append calendar
+    mainContainer.append calendarElement
 
-    calendar.fullCalendar {
-      header:
-        left: 'today prev,next'
-        center: 'title'
-        right: 'agendaWeek,month'
-
-      defaultView: 'agendaWeek'
-    }
+    calendars.createGeneral calendarElement
 
   class InDocCalendar
     _entityId: null
@@ -38,7 +40,7 @@
     _calendarElement: null
     _calendarIsDisplayed: null
     _mainContentsTable: null
-    _screenBorderMargin: 15
+    _calendar: null
     constructor: (@_entityId, @_mainContainer) ->
 
     render: ->
@@ -63,7 +65,7 @@
       @_calendarElement.toggle()
 
       if @_calendarIsDisplayed
-        ($ 'body').scrollTop @_calendarElement.offset().top - @_screenBorderMargin
+        @_calendar.scrollTo()
 
     _renderCalendar: ->
       @_calendarElement = $ '<div class="addonScheduledTasks-inDocCalendar"></div>'
@@ -77,23 +79,101 @@
       mainContentsWrapper.append @_mainContentsTable
       @_mainContainer.prepend mainContentsWrapper
 
-      @_calendarElement.fullCalendar({
-          header:
-            left: 'today prev, next'
-            center: 'title'
-            right: 'agendaWeek, month'
+      createHandler = (startMoment, endMoment) => @_createNewTask startMoment, endMoment
 
-          defaultView: 'agendaWeek'
-
-        }
-      )
-
-      maxCalendarHeight = window.innerHeight - 2 * @_screenBorderMargin
-      if @_calendarElement.height() > maxCalendarHeight
-        @_calendarElement.fullCalendar 'option', 'height', maxCalendarHeight
+      @_calendar = calendars.createInDoc @_calendarElement, createHandler
 
       @_calendarIsDisplayed = no
       @_calendarElement.hide()
+
+    _createNewTask: (startMoment, endMoment) ->
+      title = window.prompt 'Введите название задачи:'
+      if title?
+        taskStorage.create @_entityId, {title, startMoment, endMoment}, (newCalendarTask) =>
+          @_calendar.do 'renderEvent', newCalendarTask
+
+      @_calendar.do 'unselect'
+
+  calendars =
+    _screenBorderMargin: 20
+    createGeneral: (domElement) ->
+      @_create domElement, {}
+    createInDoc: (domElement, create) ->
+      @_create domElement, {
+        selectable: true
+        selectHelper: true
+        select: (startMoment, endMoment) =>
+          create startMoment, endMoment
+        editable: true
+      }
+
+    _create: (domElement, additionalOptions) ->
+      calendar = @_constructCalendarWrapper domElement
+
+      fullOptions = $.extend @_getBaseOptions(), additionalOptions
+      calendar.do fullOptions
+
+      @_adjustToScreenHeight calendar
+
+      return calendar
+
+    _constructCalendarWrapper: (domElement) ->
+      do: ->
+        domElement.fullCalendar.apply domElement, arguments
+      scrollTo: ->
+        ($ 'body').scrollTop domElement.offset().top - @_screenBorderMargin
+
+    _adjustToScreenHeight: (calendar) ->
+      maxCalendarHeight = window.innerHeight - 2 * @_screenBorderMargin
+      if domElement.height() > maxCalendarHeight
+        calendar.do 'option', 'height', maxCalendarHeight
+
+
+    _getBaseOptions: ->
+      header:
+        left: 'today prev,next'
+        center: 'title'
+        right: 'agendaWeek,month'
+      defaultView: 'agendaWeek'
+      events: (start, end, unusedTimezone, callback) ->
+        taskStorage.getTasks start, end, callback
+
+  taskStorage =
+    _taskDataKey: 'entityTaskData'
+    _tasksData: null
+    init: ->
+      taistApi.companyData.get @_taskDataKey, (taskData) =>
+        @_tasksData = taskData ? {}
+        console.log 'got task data: ', taskData
+    create: (entityId, calendarTaskData, callback) ->
+      @_tasksData[entityId] ?= []
+
+      newTaskData = {
+        title: calendarTaskData.title
+        start: calendarTaskData.startMoment.format()
+        end: calendarTaskData.endMoment.format()
+      }
+
+      @_tasksData[entityId].push newTaskData
+      taistApi.companyData.setPart @_taskDataKey, entityId, @_tasksData[entityId], =>
+        callback @_constructCalendarTask newTaskData
+
+    getTasks: (startMoment, endMoment, callback) ->
+      selectedTasks = []
+      for docId, docTaskDataList of @_tasksData
+        for taskData in docTaskDataList
+          calendarTask = @_constructCalendarTask taskData
+
+          #use inverted comparisons to account for equality
+          if (not calendarTask.start.isBefore startMoment) && (not calendarTask.end.isAfter endMoment)
+            selectedTasks.push calendarTask
+
+      callback selectedTasks
+
+    _constructCalendarTask: (taskData) ->
+      title: taskData.title
+      start: moment taskData.start
+      end: moment taskData.end
 
   moyskladUtils =
     _getMainContainer: ->
@@ -192,7 +272,6 @@
           location.hash = '#unexistingHashForRefresh'
           setTimeout (
             ->
-              taistApi.log "force updating hash"
               location.hash = currentHash
           ), 100
 
@@ -201,24 +280,26 @@
         (@_menuItemToggleSelected ($ menuItem), no) for menuItem in menuItems
 
     currentEntity:
+      _idInHashRegexp: new RegExp '\\?id=[\\w\\-]*$'
       onDisplay: (handler) ->
-        idRegExp = new RegExp '\\?id=[\\w\\-]*$'
-        taistApi.hash.when idRegExp, (newHash) =>
-          idSubstring = (idRegExp.exec newHash)[0]
-          prefixLength = '?id='.length
-          entityId = idSubstring.substring prefixLength
-
+        taistApi.hash.when @_idInHashRegexp, =>
           mainContainerRenderedCondition = ->
             moyskladUtils._getMainContainer()?.children('table').length > 0
 
-          taistApi.wait.once mainContainerRenderedCondition, ->
-            handler entityId, moyskladUtils._getMainContainer()
+          taistApi.wait.once mainContainerRenderedCondition, =>
+            handler @getId(), moyskladUtils._getMainContainer()
+
+      getId: ->
+        idSubstring = (@_idInHashRegexp.exec location.hash)[0]
+        prefixLength = '?id='.length
+        return idSubstring.substring prefixLength
+
 
     uiPrimitives:
       button: (options) ->
         button = $ "<div role=\"button\" class=\"b-popup-button b-popup-button-enabled b-popup-button-gray #{options.classes}\" tabindex=\"0\">
-                  <table><colgroup><col></colgroup><tbody><tr><td></td><td><span class=\"text\">#{options.caption}</span></td></tr></tbody></table>
-                </div>"
+                                                          <table><colgroup><col></colgroup><tbody><tr><td></td><td><span class=\"text\">#{options.caption}</span></td></tr></tbody></table>
+                                                        </div>"
 
         if options.click?
           button.click options.click
