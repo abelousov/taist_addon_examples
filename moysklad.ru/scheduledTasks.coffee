@@ -9,12 +9,12 @@
 
     taistApi.wait.once (-> getCompanyKey().length > 0), ->
       taistApi.companyData.setCompanyKey getCompanyKey()
-      taskStorage.init()
+      taskStorage.init ->
 
-    loadFullCalendar()
+        loadFullCalendar()
 
-    drawGeneralCalendarTab()
-    waitDrawDocumentCalendar()
+        drawGeneralCalendarTab()
+        waitDrawDocumentCalendar()
 
   getCompanyKey = -> $('.companyName>span').text()
 
@@ -38,6 +38,7 @@
     _entityId: null
     _mainContainer: null
     _calendarElement: null
+    _taskListElement: null
     _calendarIsDisplayed: null
     _mainContentsTable: null
     _calendar: null
@@ -46,8 +47,16 @@
     render: ->
       @_mainContentsTable = @_mainContainer.children()
       @_mainContentsTable.addClass 'addonScheduledTasks-inDocTopLevelElements'
-      taskListContainer = $ '<div class="addonScheduledTasks-inDocTopLevelElements addonScheduledTasks-taskList"></div>'
+      taskListContainer = $ '<div class="addonScheduledTasks-inDocTopLevelElements addonScheduledTasks-inDocTasks"></div>'
       taskListContainer.append @_createCalendarToggleButton()
+
+      taskListContainer.append $ '<h3 class="addonScheduledTasks-taskListHeader">Задачи: </h3>'
+
+
+      @_taskListElement = $ '<div class="addonScheduledTasks-inDocTaskList"></div>'
+      taskListContainer.append @_taskListElement
+
+      @_redrawTaskList()
       @_mainContainer.append taskListContainer
 
     _createCalendarToggleButton: ->
@@ -58,7 +67,7 @@
           @_toggleCalendarDisplay()
 
     _toggleCalendarDisplay: ->
-      if not @_calendarElement?
+      if not @_calendar?
         @_renderCalendar()
 
       @_calendarIsDisplayed = not @_calendarIsDisplayed
@@ -71,7 +80,7 @@
       @_calendarElement = $ '<div class="addonScheduledTasks-inDocCalendar"></div>'
       @_calendarElement.width @_mainContentsTable.width()
 
-      # wrapper main contents for correct positioning:
+      # wrap main contents for correct positioning:
       # calendar should be on top of other contents,
       # but task list should be always in the top right part
       mainContentsWrapper = $ '<div class="addonScheduledTasks-inDocTopLevelElements addonScheduledTasks-mainContentsWrapper"></div>'
@@ -79,42 +88,88 @@
       mainContentsWrapper.append @_mainContentsTable
       @_mainContainer.prepend mainContentsWrapper
 
-      createHandler = (startMoment, endMoment) => @_createNewTask startMoment, endMoment
+      create = (start, end) =>
+        return edit {start, end, entityId: @_entityId}
 
-      @_calendar = Calendar.createInDoc @_calendarElement, createHandler
+      enhance = (calendarTask) =>
+        console.log 'checking: ', calendarTask
+        if calendarTask.entityId is @_entityId
+          console.log 'enhancing!'
+          calendarTask.className = "addonScheduledTasks-calendarTaskForCurrentEntity"
+
+      onUpdate = =>
+        @_redrawTaskList()
+
+      edit = (calendarTask) ->
+        title = window.prompt 'Введите название задачи:'
+        if title?
+          calendarTask.title = title
+          return calendarTask
+
+      @_calendar = Calendar.createForEntity @_calendarElement, {create, onUpdate, enhance, edit}
 
       @_calendarIsDisplayed = no
       @_calendarElement.hide()
 
-    _createNewTask: (startMoment, endMoment) ->
-      title = window.prompt 'Введите название задачи:'
-      if title?
-        taskStorage.create @_entityId, {title, startMoment, endMoment}, (newCalendarTask) =>
-          @_calendar.do 'renderEvent', newCalendarTask
+    _redrawTaskList: ->
+      @_taskListElement.empty()
+      for task in taskStorage.getOrderedEntityTasks @_entityId
+        @_taskListElement.append @_renderTask task
 
-      @_calendar.do 'unselect'
+    _renderTask: (task) ->
+      taskDate = (task.start.format "DD.MM HH:mm - ") + (task.end.format "HH:mm")
+      console.log 'rendering: ', task
+      $ """<div class="addonScheduledTasks-taskContents">#{task.title} - #{taskDate}</div>"""
 
   class Calendar
     _screenBorderMargin: 20
-    @createGeneral: (domElement) ->
-      @_create domElement, {}
-    @createInDoc: (domElement, create) ->
-      @_create domElement, {
-        selectable: true
-        selectHelper: true
-        select: (startMoment, endMoment) =>
-          create startMoment, endMoment
-        editable: true
-      }
-
-    @_create: (domElement, additionalOptions) -> new Calendar domElement, additionalOptions
-
     _domElement: null
 
-    constructor: (@_domElement, additionalOptions) ->
-      fullOptions = $.extend @_getBaseOptions(), additionalOptions
-      @do fullOptions
-      @adjustToScreenHeight()
+    @createGeneral: (domElement) -> Calendar._create domElement, null
+    @createForEntity: (domElement, handlers) ->
+      updateTaskFromEvent = (calendarTask) ->
+        taskStorage.updateTaskByCalendarTask calendarTask, ->
+          handlers.onUpdate()
+      advancedOptionsFactory = (calendar) ->
+        selectable: true
+        selectHelper: true
+        select: (start, end) ->
+          newCalendarTaskData = create start, end
+          if newCalendarTaskData?
+            taskStorage.create newCalendarTaskData, (newCalendarTask) =>
+              handlers.enhance newCalendarTask
+              calendar.do 'renderEvent', newCalendarTask
+              handlers.onUpdate()
+
+          calendar.do 'unselect'
+
+        eventClick: (calendarTask) ->
+          editedTask = handlers.edit calendarTask
+          if editedTask?
+            calendar.do 'renderEvent', calendarTask
+            updateTaskFromEvent editedTask
+
+        editable: true
+        eventDrop: updateTaskFromEvent
+        eventResize: updateTaskFromEvent
+
+        events: (start, end, timezone, callback) ->
+          Calendar._baseOptions.events start, end, timezone, (eventsList) ->
+            (handlers.enhance event) for event in eventsList
+            callback eventsList
+
+      return Calendar._create domElement, advancedOptionsFactory
+
+    @_create: (domElement, advancedOptionsFactory) ->
+      calendar = new Calendar domElement
+      advancedOptions = (advancedOptionsFactory? calendar) ? {}
+      calendar.do ($.extend {}, Calendar._baseOptions, advancedOptions)
+
+      calendar.adjustToScreenHeight()
+
+      return calendar
+
+    constructor: (@_domElement) ->
 
     do: ->
       @_domElement.fullCalendar.apply @_domElement, arguments
@@ -126,51 +181,83 @@
       if @_domElement.height() > maxCalendarHeight
         @do 'option', 'height', maxCalendarHeight
 
-    _getBaseOptions: ->
+    @_baseOptions:
       header:
         left: 'today prev,next'
         center: 'title'
         right: 'agendaWeek,month'
       defaultView: 'agendaWeek'
       events: (start, end, unusedTimezone, callback) ->
-        taskStorage.getTasks start, end, callback
+        taskStorage.getTasksForTimeRange start, end, callback
 
   taskStorage =
     _taskDataKey: 'entityTaskData'
     _tasksData: null
-    init: ->
+    init: (callback) ->
       taistApi.companyData.get @_taskDataKey, (taskData) =>
         @_tasksData = taskData ? {}
-        console.log 'got task data: ', taskData
-    create: (entityId, calendarTaskData, callback) ->
-      @_tasksData[entityId] ?= []
+        callback()
 
-      newTaskData = {
-        title: calendarTaskData.title
-        start: calendarTaskData.startMoment.format()
-        end: calendarTaskData.endMoment.format()
-      }
+    create: (calendarTaskData, callback) ->
+      newTaskData = {}
+      entityId = calendarTaskData.entityId
+      entityTasks = @_getEntityTasks entityId
 
-      @_tasksData[entityId].push newTaskData
-      taistApi.companyData.setPart @_taskDataKey, entityId, @_tasksData[entityId], =>
-        callback @_constructCalendarTask newTaskData
+      entityTasks.push newTaskData
 
-    getTasks: (startMoment, endMoment, callback) ->
+      @_updateTask newTaskData, calendarTaskData, =>
+        callback @_constructCalendarTask newTaskData, entityId
+
+    _updateTask: (taskData, calendarTaskData, callback) ->
+      entityId = calendarTaskData.entityId
+
+      taskData.title = calendarTaskData.title
+      taskData.start = calendarTaskData.start.format()
+      taskData.end = calendarTaskData.end.format()
+
+      taistApi.companyData.setPart @_taskDataKey, entityId, (@_getEntityTasks entityId), -> callback()
+
+    updateTaskByCalendarTask: (calendarTask, callback) ->
+      @_updateTask calendarTask.taskData, calendarTask, -> callback()
+
+    getTasksForTimeRange: (start, end, callback) ->
       selectedTasks = []
-      for docId, docTaskDataList of @_tasksData
-        for taskData in docTaskDataList
-          calendarTask = @_constructCalendarTask taskData
+      for entityId of @_tasksData
+        for taskData in @_getEntityTasks entityId
+          calendarTask = @_constructCalendarTask taskData, entityId
 
           #use inverted comparisons to account for equality
-          if (not calendarTask.start.isBefore startMoment) && (not calendarTask.end.isAfter endMoment)
+          if (not calendarTask.start.isBefore start) && (not calendarTask.end.isAfter end)
             selectedTasks.push calendarTask
 
       callback selectedTasks
 
-    _constructCalendarTask: (taskData) ->
+    _getEntityTasks: (entityId) ->
+      @_tasksData[entityId] ?= []
+      return @_tasksData[entityId]
+
+    getOrderedEntityTasks: (entityId) ->
+      rawTasks = @_getEntityTasks entityId
+      calendarTasks = ((@_constructCalendarTask rawTask, entityId) for rawTask in rawTasks)
+      return calendarTasks.sort (firstTask, secondTask) ->
+        firstStart = moment firstTask.start
+        secondStart = moment secondTask.start
+
+        return (
+          if firstStart.isBefore secondStart
+            -1
+          else if firstStart.isAfter secondStart
+            1
+          else 0
+        )
+
+    _constructCalendarTask: (taskData, entityId) -> {
       title: taskData.title
       start: moment taskData.start
       end: moment taskData.end
+      entityId
+      taskData
+    }
 
   moyskladUtils =
     _getMainContainer: ->
@@ -248,9 +335,7 @@
       _clearSubMenu: ->
         #hide native subMenu as it will be reused in native menu item
         @_getSubMenu().hide()
-
         @_resetCurrentNativeSubMenuItem()
-
 
       _restoreSubMenu: ->
         @_getSubMenu().show()
@@ -264,6 +349,9 @@
         #remove selection from native subMenu items
         activeItem.removeClass "active"
 
+        #clicking on custom items doesn't change hash
+        #so when clicking on the native item the hash is the same
+        #so "touch" it to force redrawing of native contents
         activeItem.one "click", ->
           currentHash = location.hash
           location.hash = '#unexistingHashForRefresh'
@@ -271,7 +359,6 @@
             ->
               location.hash = currentHash
           ), 100
-
 
       _unselectMenuItems: (menuItems) ->
         (@_menuItemToggleSelected ($ menuItem), no) for menuItem in menuItems

@@ -7,15 +7,16 @@
   start = function(_taistApi) {
     taistApi = _taistApi;
     taistApi.haltOnError = true;
-    taistApi.wait.once((function() {
+    return taistApi.wait.once((function() {
       return getCompanyKey().length > 0;
     }), function() {
       taistApi.companyData.setCompanyKey(getCompanyKey());
-      return taskStorage.init();
+      return taskStorage.init(function() {
+        loadFullCalendar();
+        drawGeneralCalendarTab();
+        return waitDrawDocumentCalendar();
+      });
     });
-    loadFullCalendar();
-    drawGeneralCalendarTab();
-    return waitDrawDocumentCalendar();
   };
   getCompanyKey = function() {
     return $('.companyName>span').text();
@@ -41,6 +42,8 @@
 
     InDocCalendar.prototype._calendarElement = null;
 
+    InDocCalendar.prototype._taskListElement = null;
+
     InDocCalendar.prototype._calendarIsDisplayed = null;
 
     InDocCalendar.prototype._mainContentsTable = null;
@@ -56,8 +59,12 @@
       var taskListContainer;
       this._mainContentsTable = this._mainContainer.children();
       this._mainContentsTable.addClass('addonScheduledTasks-inDocTopLevelElements');
-      taskListContainer = $('<div class="addonScheduledTasks-inDocTopLevelElements addonScheduledTasks-taskList"></div>');
+      taskListContainer = $('<div class="addonScheduledTasks-inDocTopLevelElements addonScheduledTasks-inDocTasks"></div>');
       taskListContainer.append(this._createCalendarToggleButton());
+      taskListContainer.append($('<h3 class="addonScheduledTasks-taskListHeader">Задачи: </h3>'));
+      this._taskListElement = $('<div class="addonScheduledTasks-inDocTaskList"></div>');
+      taskListContainer.append(this._taskListElement);
+      this._redrawTaskList();
       return this._mainContainer.append(taskListContainer);
     };
 
@@ -74,7 +81,7 @@
     };
 
     InDocCalendar.prototype._toggleCalendarDisplay = function() {
-      if (this._calendarElement == null) {
+      if (this._calendar == null) {
         this._renderCalendar();
       }
       this._calendarIsDisplayed = !this._calendarIsDisplayed;
@@ -85,38 +92,71 @@
     };
 
     InDocCalendar.prototype._renderCalendar = function() {
-      var createHandler, mainContentsWrapper;
+      var create, edit, enhance, mainContentsWrapper, onUpdate;
       this._calendarElement = $('<div class="addonScheduledTasks-inDocCalendar"></div>');
       this._calendarElement.width(this._mainContentsTable.width());
       mainContentsWrapper = $('<div class="addonScheduledTasks-inDocTopLevelElements addonScheduledTasks-mainContentsWrapper"></div>');
       mainContentsWrapper.append(this._calendarElement);
       mainContentsWrapper.append(this._mainContentsTable);
       this._mainContainer.prepend(mainContentsWrapper);
-      createHandler = (function(_this) {
-        return function(startMoment, endMoment) {
-          return _this._createNewTask(startMoment, endMoment);
+      create = (function(_this) {
+        return function(start, end) {
+          return edit({
+            start: start,
+            end: end,
+            entityId: _this._entityId
+          });
         };
       })(this);
-      this._calendar = Calendar.createInDoc(this._calendarElement, createHandler);
+      enhance = (function(_this) {
+        return function(calendarTask) {
+          console.log('checking: ', calendarTask);
+          if (calendarTask.entityId === _this._entityId) {
+            console.log('enhancing!');
+            return calendarTask.className = "addonScheduledTasks-calendarTaskForCurrentEntity";
+          }
+        };
+      })(this);
+      onUpdate = (function(_this) {
+        return function() {
+          return _this._redrawTaskList();
+        };
+      })(this);
+      edit = function(calendarTask) {
+        var title;
+        title = window.prompt('Введите название задачи:');
+        if (title != null) {
+          calendarTask.title = title;
+          return calendarTask;
+        }
+      };
+      this._calendar = Calendar.createForEntity(this._calendarElement, {
+        create: create,
+        onUpdate: onUpdate,
+        enhance: enhance,
+        edit: edit
+      });
       this._calendarIsDisplayed = false;
       return this._calendarElement.hide();
     };
 
-    InDocCalendar.prototype._createNewTask = function(startMoment, endMoment) {
-      var title;
-      title = window.prompt('Введите название задачи:');
-      if (title != null) {
-        taskStorage.create(this._entityId, {
-          title: title,
-          startMoment: startMoment,
-          endMoment: endMoment
-        }, (function(_this) {
-          return function(newCalendarTask) {
-            return _this._calendar["do"]('renderEvent', newCalendarTask);
-          };
-        })(this));
+    InDocCalendar.prototype._redrawTaskList = function() {
+      var task, _i, _len, _ref, _results;
+      this._taskListElement.empty();
+      _ref = taskStorage.getOrderedEntityTasks(this._entityId);
+      _results = [];
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        task = _ref[_i];
+        _results.push(this._taskListElement.append(this._renderTask(task)));
       }
-      return this._calendar["do"]('unselect');
+      return _results;
+    };
+
+    InDocCalendar.prototype._renderTask = function(task) {
+      var taskDate;
+      taskDate = (task.start.format("DD.MM HH:mm - ")) + (task.end.format("HH:mm"));
+      console.log('rendering: ', task);
+      return $("<div class=\"addonScheduledTasks-taskContents\">" + task.title + " - " + taskDate + "</div>");
     };
 
     return InDocCalendar;
@@ -125,35 +165,74 @@
   Calendar = (function() {
     Calendar.prototype._screenBorderMargin = 20;
 
-    Calendar.createGeneral = function(domElement) {
-      return this._create(domElement, {});
-    };
-
-    Calendar.createInDoc = function(domElement, create) {
-      return this._create(domElement, {
-        selectable: true,
-        selectHelper: true,
-        select: (function(_this) {
-          return function(startMoment, endMoment) {
-            return create(startMoment, endMoment);
-          };
-        })(this),
-        editable: true
-      });
-    };
-
-    Calendar._create = function(domElement, additionalOptions) {
-      return new Calendar(domElement, additionalOptions);
-    };
-
     Calendar.prototype._domElement = null;
 
-    function Calendar(_domElement, additionalOptions) {
-      var fullOptions;
+    Calendar.createGeneral = function(domElement) {
+      return Calendar._create(domElement, null);
+    };
+
+    Calendar.createForEntity = function(domElement, handlers) {
+      var advancedOptionsFactory, updateTaskFromEvent;
+      updateTaskFromEvent = function(calendarTask) {
+        return taskStorage.updateTaskByCalendarTask(calendarTask, function() {
+          return handlers.onUpdate();
+        });
+      };
+      advancedOptionsFactory = function(calendar) {
+        return {
+          selectable: true,
+          selectHelper: true,
+          select: function(start, end) {
+            var newCalendarTaskData;
+            newCalendarTaskData = create(start, end);
+            if (newCalendarTaskData != null) {
+              taskStorage.create(newCalendarTaskData, (function(_this) {
+                return function(newCalendarTask) {
+                  handlers.enhance(newCalendarTask);
+                  calendar["do"]('renderEvent', newCalendarTask);
+                  return handlers.onUpdate();
+                };
+              })(this));
+            }
+            return calendar["do"]('unselect');
+          },
+          eventClick: function(calendarTask) {
+            var editedTask;
+            editedTask = handlers.edit(calendarTask);
+            if (editedTask != null) {
+              calendar["do"]('renderEvent', calendarTask);
+              return updateTaskFromEvent(editedTask);
+            }
+          },
+          editable: true,
+          eventDrop: updateTaskFromEvent,
+          eventResize: updateTaskFromEvent,
+          events: function(start, end, timezone, callback) {
+            return Calendar._baseOptions.events(start, end, timezone, function(eventsList) {
+              var event, _i, _len;
+              for (_i = 0, _len = eventsList.length; _i < _len; _i++) {
+                event = eventsList[_i];
+                handlers.enhance(event);
+              }
+              return callback(eventsList);
+            });
+          }
+        };
+      };
+      return Calendar._create(domElement, advancedOptionsFactory);
+    };
+
+    Calendar._create = function(domElement, advancedOptionsFactory) {
+      var advancedOptions, calendar, _ref;
+      calendar = new Calendar(domElement);
+      advancedOptions = (_ref = typeof advancedOptionsFactory === "function" ? advancedOptionsFactory(calendar) : void 0) != null ? _ref : {};
+      calendar["do"]($.extend({}, Calendar._baseOptions, advancedOptions));
+      calendar.adjustToScreenHeight();
+      return calendar;
+    };
+
+    function Calendar(_domElement) {
       this._domElement = _domElement;
-      fullOptions = $.extend(this._getBaseOptions(), additionalOptions);
-      this["do"](fullOptions);
-      this.adjustToScreenHeight();
     }
 
     Calendar.prototype["do"] = function() {
@@ -172,18 +251,16 @@
       }
     };
 
-    Calendar.prototype._getBaseOptions = function() {
-      return {
-        header: {
-          left: 'today prev,next',
-          center: 'title',
-          right: 'agendaWeek,month'
-        },
-        defaultView: 'agendaWeek',
-        events: function(start, end, unusedTimezone, callback) {
-          return taskStorage.getTasks(start, end, callback);
-        }
-      };
+    Calendar._baseOptions = {
+      header: {
+        left: 'today prev,next',
+        center: 'title',
+        right: 'agendaWeek,month'
+      },
+      defaultView: 'agendaWeek',
+      events: function(start, end, unusedTimezone, callback) {
+        return taskStorage.getTasksForTimeRange(start, end, callback);
+      }
     };
 
     return Calendar;
@@ -192,52 +269,89 @@
   taskStorage = {
     _taskDataKey: 'entityTaskData',
     _tasksData: null,
-    init: function() {
+    init: function(callback) {
       return taistApi.companyData.get(this._taskDataKey, (function(_this) {
         return function(taskData) {
           _this._tasksData = taskData != null ? taskData : {};
-          return console.log('got task data: ', taskData);
+          return callback();
         };
       })(this));
     },
-    create: function(entityId, calendarTaskData, callback) {
-      var newTaskData, _base;
-      if ((_base = this._tasksData)[entityId] == null) {
-        _base[entityId] = [];
-      }
-      newTaskData = {
-        title: calendarTaskData.title,
-        start: calendarTaskData.startMoment.format(),
-        end: calendarTaskData.endMoment.format()
-      };
-      this._tasksData[entityId].push(newTaskData);
-      return taistApi.companyData.setPart(this._taskDataKey, entityId, this._tasksData[entityId], (function(_this) {
+    create: function(calendarTaskData, callback) {
+      var entityId, entityTasks, newTaskData;
+      newTaskData = {};
+      entityId = calendarTaskData.entityId;
+      entityTasks = this._getEntityTasks(entityId);
+      entityTasks.push(newTaskData);
+      return this._updateTask(newTaskData, calendarTaskData, (function(_this) {
         return function() {
-          return callback(_this._constructCalendarTask(newTaskData));
+          return callback(_this._constructCalendarTask(newTaskData, entityId));
         };
       })(this));
     },
-    getTasks: function(startMoment, endMoment, callback) {
-      var calendarTask, docId, docTaskDataList, selectedTasks, taskData, _i, _len, _ref;
+    _updateTask: function(taskData, calendarTaskData, callback) {
+      var entityId;
+      entityId = calendarTaskData.entityId;
+      taskData.title = calendarTaskData.title;
+      taskData.start = calendarTaskData.start.format();
+      taskData.end = calendarTaskData.end.format();
+      return taistApi.companyData.setPart(this._taskDataKey, entityId, this._getEntityTasks(entityId), function() {
+        return callback();
+      });
+    },
+    updateTaskByCalendarTask: function(calendarTask, callback) {
+      return this._updateTask(calendarTask.taskData, calendarTask, function() {
+        return callback();
+      });
+    },
+    getTasksForTimeRange: function(start, end, callback) {
+      var calendarTask, entityId, selectedTasks, taskData, _i, _len, _ref;
       selectedTasks = [];
-      _ref = this._tasksData;
-      for (docId in _ref) {
-        docTaskDataList = _ref[docId];
-        for (_i = 0, _len = docTaskDataList.length; _i < _len; _i++) {
-          taskData = docTaskDataList[_i];
-          calendarTask = this._constructCalendarTask(taskData);
-          if ((!calendarTask.start.isBefore(startMoment)) && (!calendarTask.end.isAfter(endMoment))) {
+      for (entityId in this._tasksData) {
+        _ref = this._getEntityTasks(entityId);
+        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+          taskData = _ref[_i];
+          calendarTask = this._constructCalendarTask(taskData, entityId);
+          if ((!calendarTask.start.isBefore(start)) && (!calendarTask.end.isAfter(end))) {
             selectedTasks.push(calendarTask);
           }
         }
       }
       return callback(selectedTasks);
     },
-    _constructCalendarTask: function(taskData) {
+    _getEntityTasks: function(entityId) {
+      var _base;
+      if ((_base = this._tasksData)[entityId] == null) {
+        _base[entityId] = [];
+      }
+      return this._tasksData[entityId];
+    },
+    getOrderedEntityTasks: function(entityId) {
+      var calendarTasks, rawTask, rawTasks;
+      rawTasks = this._getEntityTasks(entityId);
+      calendarTasks = (function() {
+        var _i, _len, _results;
+        _results = [];
+        for (_i = 0, _len = rawTasks.length; _i < _len; _i++) {
+          rawTask = rawTasks[_i];
+          _results.push(this._constructCalendarTask(rawTask, entityId));
+        }
+        return _results;
+      }).call(this);
+      return calendarTasks.sort(function(firstTask, secondTask) {
+        var firstStart, secondStart;
+        firstStart = moment(firstTask.start);
+        secondStart = moment(secondTask.start);
+        return (firstStart.isBefore(secondStart) ? -1 : firstStart.isAfter(secondStart) ? 1 : 0);
+      });
+    },
+    _constructCalendarTask: function(taskData, entityId) {
       return {
         title: taskData.title,
         start: moment(taskData.start),
-        end: moment(taskData.end)
+        end: moment(taskData.end),
+        entityId: entityId,
+        taskData: taskData
       };
     }
   };
