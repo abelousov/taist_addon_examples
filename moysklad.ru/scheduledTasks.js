@@ -30,10 +30,11 @@
     });
   };
   createGeneralCalendarDom = function(mainContainer) {
-    var calendarElement;
+    var calendar, calendarElement;
     calendarElement = $("<div></div>");
     mainContainer.append(calendarElement);
-    return Calendar.createReadOnly(calendarElement);
+    calendar = Calendar.createReadOnly(calendarElement);
+    return calendar.scrollTo();
   };
   InDocCalendar = (function() {
     InDocCalendar.prototype._entityId = null;
@@ -144,15 +145,19 @@
     };
 
     InDocCalendar.prototype._redrawTaskList = function() {
-      var task, _i, _len, _ref, _results;
+      var orderedTasks, task, _i, _len, _results;
       this._taskListElement.empty();
-      _ref = taskStorage.getOrderedEntityTasks(this._entityId);
-      _results = [];
-      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-        task = _ref[_i];
-        _results.push(this._taskListElement.append(this._renderTask(task)));
+      orderedTasks = taskStorage.getOrderedEntityTasks(this._entityId);
+      if (orderedTasks.length > 0) {
+        _results = [];
+        for (_i = 0, _len = orderedTasks.length; _i < _len; _i++) {
+          task = orderedTasks[_i];
+          _results.push(this._taskListElement.append(this._renderTask(task)));
+        }
+        return _results;
+      } else {
+        return this._taskListElement.append($("<div style='font-style: italic'>Задач нет</div>"));
       }
-      return _results;
     };
 
     InDocCalendar.prototype._renderTask = function(task) {
@@ -304,7 +309,9 @@
     },
     create: function(calendarTaskData, callback) {
       var entityId, entityTasks, newTaskData;
-      newTaskData = {};
+      newTaskData = {
+        entityType: moyskladUtils.currentEntity.getType()
+      };
       entityId = calendarTaskData.entityId;
       entityTasks = this._getEntityTasks(entityId);
       entityTasks.push(newTaskData);
@@ -515,6 +522,9 @@
         idSubstring = (this._idInHashRegexp.exec(location.hash))[0];
         prefixLength = '?id='.length;
         return idSubstring.substring(prefixLength);
+      },
+      getType: function() {
+        return location.hash.substring(1, location.hash.indexOf('/'));
       }
     },
     uiPrimitives: {

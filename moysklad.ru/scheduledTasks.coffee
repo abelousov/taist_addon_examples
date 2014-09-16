@@ -32,7 +32,8 @@
     #calendar element should be appended to the dom before rendering the calendar
     mainContainer.append calendarElement
 
-    Calendar.createReadOnly calendarElement
+    calendar = Calendar.createReadOnly calendarElement
+    calendar.scrollTo()
 
   class InDocCalendar
     _entityId: null
@@ -51,7 +52,6 @@
       taskListContainer.append @_createCalendarToggleButton()
 
       taskListContainer.append $ '<h3 class="addonScheduledTasks-taskListHeader">Задачи: </h3>'
-
 
       @_taskListElement = $ '<div class="addonScheduledTasks-inDocTaskList"></div>'
       taskListContainer.append @_taskListElement
@@ -119,8 +119,12 @@
 
     _redrawTaskList: ->
       @_taskListElement.empty()
-      for task in taskStorage.getOrderedEntityTasks @_entityId
-        @_taskListElement.append @_renderTask task
+      orderedTasks = taskStorage.getOrderedEntityTasks @_entityId
+      if orderedTasks.length > 0
+        for task in orderedTasks
+          @_taskListElement.append @_renderTask task
+      else
+        @_taskListElement.append $ "<div style='font-style: italic'>Задач нет</div>"
 
     _renderTask: (task) ->
       taskDate = (task.start.format "DD.MM HH:mm - ") + (task.end.format "HH:mm")
@@ -221,7 +225,8 @@
         callback()
 
     create: (calendarTaskData, callback) ->
-      newTaskData = {}
+      newTaskData =
+        entityType: moyskladUtils.currentEntity.getType()
       entityId = calendarTaskData.entityId
       entityTasks = @_getEntityTasks entityId
 
@@ -407,6 +412,10 @@
         idSubstring = (@_idInHashRegexp.exec location.hash)[0]
         prefixLength = '?id='.length
         return idSubstring.substring prefixLength
+
+      getType: ->
+        #document type is always in the hash beginning - between '#' and '/'
+        location.hash.substring 1, (location.hash.indexOf '/')
 
 
     uiPrimitives:
