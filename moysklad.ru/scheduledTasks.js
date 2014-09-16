@@ -33,7 +33,7 @@
     var calendarElement;
     calendarElement = $("<div></div>");
     mainContainer.append(calendarElement);
-    return Calendar.createGeneral(calendarElement);
+    return Calendar.createReadOnly(calendarElement);
   };
   InDocCalendar = (function() {
     InDocCalendar.prototype._entityId = null;
@@ -92,50 +92,53 @@
     };
 
     InDocCalendar.prototype._renderCalendar = function() {
-      var create, edit, enhance, mainContentsWrapper, onUpdate;
+      var calendarHandlers, mainContentsWrapper;
       this._calendarElement = $('<div class="addonScheduledTasks-inDocCalendar"></div>');
       this._calendarElement.width(this._mainContentsTable.width());
       mainContentsWrapper = $('<div class="addonScheduledTasks-inDocTopLevelElements addonScheduledTasks-mainContentsWrapper"></div>');
       mainContentsWrapper.append(this._calendarElement);
       mainContentsWrapper.append(this._mainContentsTable);
       this._mainContainer.prepend(mainContentsWrapper);
-      create = (function(_this) {
-        return function(start, end) {
-          return edit({
-            start: start,
-            end: end,
-            entityId: _this._entityId
-          });
-        };
-      })(this);
-      enhance = (function(_this) {
-        return function(calendarTask) {
-          console.log('checking: ', calendarTask);
-          if (calendarTask.entityId === _this._entityId) {
-            console.log('enhancing!');
-            return calendarTask.className = "addonScheduledTasks-calendarTaskForCurrentEntity";
+      calendarHandlers = {
+        create: (function(_this) {
+          return function(start, end) {
+            return calendarHandlers._editUnconditionally({
+              start: start,
+              end: end,
+              entityId: _this._entityId
+            });
+          };
+        })(this),
+        enhance: (function(_this) {
+          return function(calendarTask) {
+            if (calendarTask.entityId === _this._entityId) {
+              calendarTask.className = "addonScheduledTasks-calendarTaskForCurrentEntity";
+              return calendarTask.editable = true;
+            } else {
+              return calendarTask.editable = false;
+            }
+          };
+        })(this),
+        onUpdate: (function(_this) {
+          return function() {
+            return _this._redrawTaskList();
+          };
+        })(this),
+        edit: function(calendarTask) {
+          if (calendarTask.editable) {
+            return calendarHandlers._editUnconditionally(calendarTask);
           }
-        };
-      })(this);
-      onUpdate = (function(_this) {
-        return function() {
-          return _this._redrawTaskList();
-        };
-      })(this);
-      edit = function(calendarTask) {
-        var title;
-        title = window.prompt('Введите название задачи:');
-        if (title != null) {
-          calendarTask.title = title;
-          return calendarTask;
+        },
+        _editUnconditionally: function(calendarTask) {
+          var title;
+          title = window.prompt('Введите название задачи:');
+          if (title != null) {
+            calendarTask.title = title;
+            return calendarTask;
+          }
         }
       };
-      this._calendar = Calendar.createForEntity(this._calendarElement, {
-        create: create,
-        onUpdate: onUpdate,
-        enhance: enhance,
-        edit: edit
-      });
+      this._calendar = Calendar.createEditable(this._calendarElement, calendarHandlers);
       this._calendarIsDisplayed = false;
       return this._calendarElement.hide();
     };
@@ -155,7 +158,6 @@
     InDocCalendar.prototype._renderTask = function(task) {
       var taskDate;
       taskDate = (task.start.format("DD.MM HH:mm - ")) + (task.end.format("HH:mm"));
-      console.log('rendering: ', task);
       return $("<div class=\"addonScheduledTasks-taskContents\">" + task.title + " - " + taskDate + "</div>");
     };
 
@@ -167,24 +169,31 @@
 
     Calendar.prototype._domElement = null;
 
-    Calendar.createGeneral = function(domElement) {
+    Calendar.createReadOnly = function(domElement) {
       return Calendar._create(domElement, null);
     };
 
-    Calendar.createForEntity = function(domElement, handlers) {
-      var advancedOptionsFactory, updateTaskFromEvent;
+    Calendar.createEditable = function(domElement, handlers) {
+      return Calendar._create(domElement, this._getEditableCalendarOptionsFactory(handlers));
+    };
+
+    Calendar._getEditableCalendarOptionsFactory = function(handlers) {
+      var updateTaskFromEvent;
       updateTaskFromEvent = function(calendarTask) {
-        return taskStorage.updateTaskByCalendarTask(calendarTask, function() {
+        return taskStorage.update(calendarTask, function() {
           return handlers.onUpdate();
         });
       };
-      advancedOptionsFactory = function(calendar) {
+      return function(calendar) {
         return {
           selectable: true,
           selectHelper: true,
+          editable: true,
+          eventDrop: updateTaskFromEvent,
+          eventResize: updateTaskFromEvent,
           select: function(start, end) {
             var newCalendarTaskData;
-            newCalendarTaskData = create(start, end);
+            newCalendarTaskData = handlers.create(start, end);
             if (newCalendarTaskData != null) {
               taskStorage.create(newCalendarTaskData, (function(_this) {
                 return function(newCalendarTask) {
@@ -196,17 +205,34 @@
             }
             return calendar["do"]('unselect');
           },
-          eventClick: function(calendarTask) {
+          eventClick: function(calendarTask, jsEvent) {
             var editedTask;
-            editedTask = handlers.edit(calendarTask);
-            if (editedTask != null) {
-              calendar["do"]('renderEvent', calendarTask);
-              return updateTaskFromEvent(editedTask);
+            if (!($(jsEvent.target)).hasClass('ownClickProcessing')) {
+              editedTask = handlers.edit(calendarTask);
+              if (editedTask != null) {
+                calendar["do"]('renderEvent', calendarTask);
+                return updateTaskFromEvent(editedTask);
+              }
             }
           },
-          editable: true,
-          eventDrop: updateTaskFromEvent,
-          eventResize: updateTaskFromEvent,
+          eventRender: function(calendarTask, domElement) {
+            var deleteLink;
+            if (calendarTask.editable) {
+              deleteLink = $('<a class="addonScheduledTasks-taskDeleteLink ownClickProcessing">Х</a>');
+              deleteLink.click(function() {
+                if (window.confirm("Удалить задачу \"" + calendarTask.title + "\"?")) {
+                  return taskStorage["delete"](calendarTask, function() {
+                    calendar["do"]('removeEvents', function(taskToConfirmRemoval) {
+                      return taskToConfirmRemoval === calendarTask;
+                    });
+                    return handlers.onUpdate();
+                  });
+                }
+              });
+              domElement.append(deleteLink);
+            }
+            return domElement;
+          },
           events: function(start, end, timezone, callback) {
             return Calendar._baseOptions.events(start, end, timezone, function(eventsList) {
               var event, _i, _len;
@@ -219,7 +245,6 @@
           }
         };
       };
-      return Calendar._create(domElement, advancedOptionsFactory);
     };
 
     Calendar._create = function(domElement, advancedOptionsFactory) {
@@ -295,14 +320,23 @@
       taskData.title = calendarTaskData.title;
       taskData.start = calendarTaskData.start.format();
       taskData.end = calendarTaskData.end.format();
+      return this._saveEntityTasks(entityId, callback);
+    },
+    _saveEntityTasks: function(entityId, callback) {
       return taistApi.companyData.setPart(this._taskDataKey, entityId, this._getEntityTasks(entityId), function() {
         return callback();
       });
     },
-    updateTaskByCalendarTask: function(calendarTask, callback) {
+    update: function(calendarTask, callback) {
       return this._updateTask(calendarTask.taskData, calendarTask, function() {
         return callback();
       });
+    },
+    "delete": function(calendarTask, callback) {
+      var entityTasks;
+      entityTasks = this._getEntityTasks(calendarTask.entityId);
+      entityTasks.splice(entityTasks.indexOf(calendarTask.taskData), 1);
+      return this._saveEntityTasks(calendarTask.entityId, callback);
     },
     getTasksForTimeRange: function(start, end, callback) {
       var calendarTask, entityId, selectedTasks, taskData, _i, _len, _ref;

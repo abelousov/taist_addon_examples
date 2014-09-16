@@ -32,7 +32,7 @@
     #calendar element should be appended to the dom before rendering the calendar
     mainContainer.append calendarElement
 
-    Calendar.createGeneral calendarElement
+    Calendar.createReadOnly calendarElement
 
   class InDocCalendar
     _entityId: null
@@ -88,25 +88,31 @@
       mainContentsWrapper.append @_mainContentsTable
       @_mainContainer.prepend mainContentsWrapper
 
-      create = (start, end) =>
-        return edit {start, end, entityId: @_entityId}
+      calendarHandlers =
+        create: (start, end) =>
+          return calendarHandlers._editUnconditionally {start, end, entityId: @_entityId}
 
-      enhance = (calendarTask) =>
-        console.log 'checking: ', calendarTask
-        if calendarTask.entityId is @_entityId
-          console.log 'enhancing!'
-          calendarTask.className = "addonScheduledTasks-calendarTaskForCurrentEntity"
+        enhance: (calendarTask) =>
+          if calendarTask.entityId is @_entityId
+            calendarTask.className = "addonScheduledTasks-calendarTaskForCurrentEntity"
+            calendarTask.editable = true
+          else
+            calendarTask.editable = false
 
-      onUpdate = =>
-        @_redrawTaskList()
+        onUpdate: =>
+          @_redrawTaskList()
 
-      edit = (calendarTask) ->
-        title = window.prompt 'Введите название задачи:'
-        if title?
-          calendarTask.title = title
-          return calendarTask
+        edit: (calendarTask) ->
+          if calendarTask.editable
+            return calendarHandlers._editUnconditionally  calendarTask
 
-      @_calendar = Calendar.createForEntity @_calendarElement, {create, onUpdate, enhance, edit}
+        _editUnconditionally: (calendarTask) ->
+          title = window.prompt 'Введите название задачи:'
+          if title?
+            calendarTask.title = title
+            return calendarTask
+
+      @_calendar = Calendar.createEditable @_calendarElement, calendarHandlers
 
       @_calendarIsDisplayed = no
       @_calendarElement.hide()
@@ -118,23 +124,30 @@
 
     _renderTask: (task) ->
       taskDate = (task.start.format "DD.MM HH:mm - ") + (task.end.format "HH:mm")
-      console.log 'rendering: ', task
       $ """<div class="addonScheduledTasks-taskContents">#{task.title} - #{taskDate}</div>"""
 
   class Calendar
     _screenBorderMargin: 20
     _domElement: null
 
-    @createGeneral: (domElement) -> Calendar._create domElement, null
-    @createForEntity: (domElement, handlers) ->
+    @createReadOnly: (domElement) -> Calendar._create domElement, null
+    @createEditable: (domElement, handlers) ->
+      return Calendar._create domElement, @_getEditableCalendarOptionsFactory handlers
+
+    @_getEditableCalendarOptionsFactory: (handlers) ->
       updateTaskFromEvent = (calendarTask) ->
-        taskStorage.updateTaskByCalendarTask calendarTask, ->
+        taskStorage.update calendarTask, ->
           handlers.onUpdate()
-      advancedOptionsFactory = (calendar) ->
+
+      return (calendar) ->
         selectable: true
         selectHelper: true
+        editable: true
+        eventDrop: updateTaskFromEvent
+        eventResize: updateTaskFromEvent
+
         select: (start, end) ->
-          newCalendarTaskData = create start, end
+          newCalendarTaskData = handlers.create start, end
           if newCalendarTaskData?
             taskStorage.create newCalendarTaskData, (newCalendarTask) =>
               handlers.enhance newCalendarTask
@@ -143,22 +156,31 @@
 
           calendar.do 'unselect'
 
-        eventClick: (calendarTask) ->
-          editedTask = handlers.edit calendarTask
-          if editedTask?
-            calendar.do 'renderEvent', calendarTask
-            updateTaskFromEvent editedTask
+        eventClick: (calendarTask, jsEvent) ->
+          if not ($ jsEvent.target).hasClass 'ownClickProcessing'
+            editedTask = handlers.edit calendarTask
+            if editedTask?
+              calendar.do 'renderEvent', calendarTask
+              updateTaskFromEvent editedTask
 
-        editable: true
-        eventDrop: updateTaskFromEvent
-        eventResize: updateTaskFromEvent
+        eventRender: (calendarTask, domElement) ->
+          if calendarTask.editable
+            deleteLink = $ '<a class="addonScheduledTasks-taskDeleteLink ownClickProcessing">Х</a>'
+            deleteLink.click ->
+              if window.confirm "Удалить задачу \"#{calendarTask.title}\"?"
+                taskStorage.delete calendarTask, ->
+                  calendar.do 'removeEvents', (taskToConfirmRemoval) ->
+                    taskToConfirmRemoval is calendarTask
+                  handlers.onUpdate()
+            domElement.append deleteLink
+
+          return domElement
+
 
         events: (start, end, timezone, callback) ->
           Calendar._baseOptions.events start, end, timezone, (eventsList) ->
             (handlers.enhance event) for event in eventsList
             callback eventsList
-
-      return Calendar._create domElement, advancedOptionsFactory
 
     @_create: (domElement, advancedOptionsFactory) ->
       calendar = new Calendar domElement
@@ -215,10 +237,18 @@
       taskData.start = calendarTaskData.start.format()
       taskData.end = calendarTaskData.end.format()
 
+      @_saveEntityTasks entityId, callback
+
+    _saveEntityTasks: (entityId, callback) ->
       taistApi.companyData.setPart @_taskDataKey, entityId, (@_getEntityTasks entityId), -> callback()
 
-    updateTaskByCalendarTask: (calendarTask, callback) ->
+    update: (calendarTask, callback) ->
       @_updateTask calendarTask.taskData, calendarTask, -> callback()
+
+    delete: (calendarTask, callback) ->
+      entityTasks = @_getEntityTasks calendarTask.entityId
+      entityTasks.splice (entityTasks.indexOf calendarTask.taskData), 1
+      @_saveEntityTasks calendarTask.entityId, callback
 
     getTasksForTimeRange: (start, end, callback) ->
       selectedTasks = []
