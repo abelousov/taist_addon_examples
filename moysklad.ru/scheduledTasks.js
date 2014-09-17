@@ -30,11 +30,10 @@
     });
   };
   createGeneralCalendarDom = function(mainContainer) {
-    var calendar, calendarElement;
+    var calendarElement;
     calendarElement = $("<div></div>");
     mainContainer.append(calendarElement);
-    calendar = Calendar.createReadOnly(calendarElement);
-    return calendar.scrollTo();
+    return Calendar.createReadOnly(calendarElement);
   };
   InDocCalendar = (function() {
     InDocCalendar.prototype._entityId = null;
@@ -111,12 +110,12 @@
           };
         })(this),
         enhance: (function(_this) {
-          return function(calendarTask) {
-            if (calendarTask.entityId === _this._entityId) {
-              calendarTask.className = "addonScheduledTasks-calendarTaskForCurrentEntity";
-              return calendarTask.editable = true;
+          return function(event) {
+            if (event.entityId === _this._entityId) {
+              event.className = "addonScheduledTasks-eventForCurrentEntity";
+              return event.editable = true;
             } else {
-              return calendarTask.editable = false;
+              return event.editable = false;
             }
           };
         })(this),
@@ -125,17 +124,17 @@
             return _this._redrawTaskList();
           };
         })(this),
-        edit: function(calendarTask) {
-          if (calendarTask.editable) {
-            return calendarHandlers._editUnconditionally(calendarTask);
+        edit: function(event) {
+          if (event.editable) {
+            return calendarHandlers._editUnconditionally(event);
           }
         },
-        _editUnconditionally: function(calendarTask) {
+        _editUnconditionally: function(event) {
           var title;
           title = window.prompt('Введите название задачи:');
           if (title != null) {
-            calendarTask.title = title;
-            return calendarTask;
+            event.title = title;
+            return event;
           }
         }
       };
@@ -184,8 +183,8 @@
 
     Calendar._getEditableCalendarOptionsFactory = function(handlers) {
       var updateTaskFromEvent;
-      updateTaskFromEvent = function(calendarTask) {
-        return taskStorage.update(calendarTask, function() {
+      updateTaskFromEvent = function(event) {
+        return taskStorage.update(event, function() {
           return handlers.onUpdate();
         });
       };
@@ -197,38 +196,38 @@
           eventDrop: updateTaskFromEvent,
           eventResize: updateTaskFromEvent,
           select: function(start, end) {
-            var newCalendarTaskData;
-            newCalendarTaskData = handlers.create(start, end);
-            if (newCalendarTaskData != null) {
-              taskStorage.create(newCalendarTaskData, (function(_this) {
-                return function(newCalendarTask) {
-                  handlers.enhance(newCalendarTask);
-                  calendar["do"]('renderEvent', newCalendarTask);
+            var newEventData;
+            newEventData = handlers.create(start, end);
+            if (newEventData != null) {
+              taskStorage.create(newEventData, (function(_this) {
+                return function(newEvent) {
+                  handlers.enhance(newEvent);
+                  calendar["do"]('renderEvent', newEvent);
                   return handlers.onUpdate();
                 };
               })(this));
             }
             return calendar["do"]('unselect');
           },
-          eventClick: function(calendarTask, jsEvent) {
+          eventClick: function(event, jsEvent) {
             var editedTask;
             if (!($(jsEvent.target)).hasClass('ownClickProcessing')) {
-              editedTask = handlers.edit(calendarTask);
+              editedTask = handlers.edit(event);
               if (editedTask != null) {
-                calendar["do"]('renderEvent', calendarTask);
+                calendar["do"]('renderEvent', event);
                 return updateTaskFromEvent(editedTask);
               }
             }
           },
-          eventRender: function(calendarTask, domElement) {
+          eventRender: function(event, domElement) {
             var deleteLink;
-            if (calendarTask.editable) {
+            if (event.editable) {
               deleteLink = $('<a class="addonScheduledTasks-taskDeleteLink ownClickProcessing">Х</a>');
               deleteLink.click(function() {
-                if (window.confirm("Удалить задачу \"" + calendarTask.title + "\"?")) {
-                  return taskStorage["delete"](calendarTask, function() {
+                if (window.confirm("Удалить задачу \"" + event.title + "\"?")) {
+                  return taskStorage["delete"](event, function() {
                     calendar["do"]('removeEvents', function(taskToConfirmRemoval) {
-                      return taskToConfirmRemoval === calendarTask;
+                      return taskToConfirmRemoval === event;
                     });
                     return handlers.onUpdate();
                   });
@@ -289,7 +288,14 @@
       },
       defaultView: 'agendaWeek',
       events: function(start, end, unusedTimezone, callback) {
-        return taskStorage.getTasksForTimeRange(start, end, callback);
+        var entityHashPath, event, eventsList, _i, _len;
+        eventsList = taskStorage.getTasksForTimeRange(start, end);
+        for (_i = 0, _len = eventsList.length; _i < _len; _i++) {
+          event = eventsList[_i];
+          entityHashPath = event.taskData.entityType + '/edit?id=' + event.entityId;
+          event.url = location.href.replace(location.hash, '#' + entityHashPath);
+        }
+        return callback(eventsList);
       }
     };
 
@@ -307,26 +313,26 @@
         };
       })(this));
     },
-    create: function(calendarTaskData, callback) {
+    create: function(eventData, callback) {
       var entityId, entityTasks, newTaskData;
       newTaskData = {
         entityType: moyskladUtils.currentEntity.getType()
       };
-      entityId = calendarTaskData.entityId;
+      entityId = eventData.entityId;
       entityTasks = this._getEntityTasks(entityId);
       entityTasks.push(newTaskData);
-      return this._updateTask(newTaskData, calendarTaskData, (function(_this) {
+      return this._updateTask(newTaskData, eventData, (function(_this) {
         return function() {
-          return callback(_this._constructCalendarTask(newTaskData, entityId));
+          return callback(_this._constructEvent(newTaskData, entityId));
         };
       })(this));
     },
-    _updateTask: function(taskData, calendarTaskData, callback) {
+    _updateTask: function(taskData, eventData, callback) {
       var entityId;
-      entityId = calendarTaskData.entityId;
-      taskData.title = calendarTaskData.title;
-      taskData.start = calendarTaskData.start.format();
-      taskData.end = calendarTaskData.end.format();
+      entityId = eventData.entityId;
+      taskData.title = eventData.title;
+      taskData.start = eventData.start.format();
+      taskData.end = eventData.end.format();
       return this._saveEntityTasks(entityId, callback);
     },
     _saveEntityTasks: function(entityId, callback) {
@@ -334,31 +340,37 @@
         return callback();
       });
     },
-    update: function(calendarTask, callback) {
-      return this._updateTask(calendarTask.taskData, calendarTask, function() {
+    update: function(event, callback) {
+      return this._updateTask(event.taskData, event, function() {
         return callback();
       });
     },
-    "delete": function(calendarTask, callback) {
+    "delete": function(event, callback) {
       var entityTasks;
-      entityTasks = this._getEntityTasks(calendarTask.entityId);
-      entityTasks.splice(entityTasks.indexOf(calendarTask.taskData), 1);
-      return this._saveEntityTasks(calendarTask.entityId, callback);
+      entityTasks = this._getEntityTasks(event.entityId);
+      entityTasks.splice(entityTasks.indexOf(event.taskData), 1);
+      return this._saveEntityTasks(event.entityId, callback);
     },
-    getTasksForTimeRange: function(start, end, callback) {
-      var calendarTask, entityId, selectedTasks, taskData, _i, _len, _ref;
-      selectedTasks = [];
+    getTasksForTimeRange: function(start, end) {
+      var allFilteredEvents, entityId, filteredEntityEvents;
+      allFilteredEvents = [];
       for (entityId in this._tasksData) {
-        _ref = this._getEntityTasks(entityId);
-        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-          taskData = _ref[_i];
-          calendarTask = this._constructCalendarTask(taskData, entityId);
-          if ((!calendarTask.start.isBefore(start)) && (!calendarTask.end.isAfter(end))) {
-            selectedTasks.push(calendarTask);
-          }
-        }
+        filteredEntityEvents = (this._getEntityEvents(entityId)).filter(function(event) {
+          return (!event.start.isBefore(start)) && (!event.end.isAfter(end));
+        });
+        allFilteredEvents = allFilteredEvents.concat(filteredEntityEvents);
       }
-      return callback(selectedTasks);
+      return allFilteredEvents;
+    },
+    _getEntityEvents: function(entityId) {
+      var rawTask, _i, _len, _ref, _results;
+      _ref = this._getEntityTasks(entityId);
+      _results = [];
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        rawTask = _ref[_i];
+        _results.push(this._constructEvent(rawTask, entityId));
+      }
+      return _results;
     },
     _getEntityTasks: function(entityId) {
       var _base;
@@ -368,25 +380,14 @@
       return this._tasksData[entityId];
     },
     getOrderedEntityTasks: function(entityId) {
-      var calendarTasks, rawTask, rawTasks;
-      rawTasks = this._getEntityTasks(entityId);
-      calendarTasks = (function() {
-        var _i, _len, _results;
-        _results = [];
-        for (_i = 0, _len = rawTasks.length; _i < _len; _i++) {
-          rawTask = rawTasks[_i];
-          _results.push(this._constructCalendarTask(rawTask, entityId));
-        }
-        return _results;
-      }).call(this);
-      return calendarTasks.sort(function(firstTask, secondTask) {
+      return (this._getEntityEvents(entityId)).sort(function(firstTask, secondTask) {
         var firstStart, secondStart;
         firstStart = moment(firstTask.start);
         secondStart = moment(secondTask.start);
         return (firstStart.isBefore(secondStart) ? -1 : firstStart.isAfter(secondStart) ? 1 : 0);
       });
     },
-    _constructCalendarTask: function(taskData, entityId) {
+    _constructEvent: function(taskData, entityId) {
       return {
         title: taskData.title,
         start: moment(taskData.start),
@@ -409,19 +410,23 @@
           return contentRenderer(mainContainer);
         });
       },
-      _createTopMenuItem: function(itemName, itemSelectHandler) {
+      _createTopMenuItem: function(itemName, clickHandler) {
         return taistApi.wait.elementRender('.topMenu tr', (function(_this) {
           return function(topMenu) {
             var newMenuItem;
             newMenuItem = _this._renderNewTopMenuItem(topMenu, itemName);
             return newMenuItem.click(function() {
-              _this._unselectMenuItems(_this._getAllMenuItems());
-              _this._menuItemToggleSelected(newMenuItem, true);
-              _this._clearSubMenu();
-              return itemSelectHandler(_this._createNewMainContainer());
+              return _this._onCustomTopMenuItemClick(newMenuItem, clickHandler);
             });
           };
         })(this));
+      },
+      _onCustomTopMenuItemClick: function(menuItem, clickHandler) {
+        this._unselectMenuItems(this._getAllMenuItems());
+        this._menuItemToggleSelected(menuItem, true);
+        this._clearSubMenu();
+        clickHandler(this._createNewMainContainer());
+        return this._forceUpdateOnHashChange();
       },
       _renderNewTopMenuItem: function(topMenu, itemName) {
         var itemsSeparator, menuItem;
@@ -481,14 +486,18 @@
       _resetCurrentNativeSubMenuItem: function() {
         var activeItem;
         activeItem = this._getSubMenu().find(".active");
-        activeItem.removeClass("active");
-        return activeItem.one("click", function() {
-          var currentHash;
-          currentHash = location.hash;
+        return activeItem.removeClass("active");
+      },
+      _forceUpdateOnHashChange: function() {
+        var currentHash;
+        currentHash = location.hash;
+        return taistApi.wait.once(location.hash !== currentHash, function() {
+          var targetHash;
+          targetHash = location.hash;
           location.hash = '#unexistingHashForRefresh';
           return setTimeout((function() {
-            return location.hash = currentHash;
-          }), 100);
+            return location.hash = targetHash;
+          }), 150);
         });
       },
       _unselectMenuItems: function(menuItems) {

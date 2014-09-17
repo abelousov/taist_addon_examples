@@ -7,17 +7,17 @@
     taistApi = _taistApi
     taistApi.haltOnError = true
 
-    taistApi.wait.once (-> getCompanyKey().length > 0), ->
-      taistApi.companyData.setCompanyKey getCompanyKey()
-      taskStorage.init ->
+    taistApi.wait.once (->
+      getCompanyKey().length > 0), ->
+        taistApi.companyData.setCompanyKey getCompanyKey()
+        taskStorage.init ->
+          loadFullCalendar()
 
-        loadFullCalendar()
+          drawGeneralCalendarTab()
+          waitDrawDocumentCalendar()
 
-        drawGeneralCalendarTab()
-        waitDrawDocumentCalendar()
-
-  getCompanyKey = -> $('.companyName>span').text()
-
+  getCompanyKey = ->
+    $('.companyName>span').text()
 
   drawGeneralCalendarTab = ->
     moyskladUtils.topMenu.addMenuItemWithoutSubItems 'Календарь', createGeneralCalendarDom
@@ -32,8 +32,7 @@
     #calendar element should be appended to the dom before rendering the calendar
     mainContainer.append calendarElement
 
-    calendar = Calendar.createReadOnly calendarElement
-    calendar.scrollTo()
+    Calendar.createReadOnly calendarElement
 
   class InDocCalendar
     _entityId: null
@@ -92,25 +91,25 @@
         create: (start, end) =>
           return calendarHandlers._editUnconditionally {start, end, entityId: @_entityId}
 
-        enhance: (calendarTask) =>
-          if calendarTask.entityId is @_entityId
-            calendarTask.className = "addonScheduledTasks-calendarTaskForCurrentEntity"
-            calendarTask.editable = true
+        enhance: (event) =>
+          if event.entityId is @_entityId
+            event.className = "addonScheduledTasks-eventForCurrentEntity"
+            event.editable = true
           else
-            calendarTask.editable = false
+            event.editable = false
 
         onUpdate: =>
           @_redrawTaskList()
 
-        edit: (calendarTask) ->
-          if calendarTask.editable
-            return calendarHandlers._editUnconditionally  calendarTask
+        edit: (event) ->
+          if event.editable
+            return calendarHandlers._editUnconditionally event
 
-        _editUnconditionally: (calendarTask) ->
+        _editUnconditionally: (event) ->
           title = window.prompt 'Введите название задачи:'
           if title?
-            calendarTask.title = title
-            return calendarTask
+            event.title = title
+            return event
 
       @_calendar = Calendar.createEditable @_calendarElement, calendarHandlers
 
@@ -134,13 +133,15 @@
     _screenBorderMargin: 20
     _domElement: null
 
-    @createReadOnly: (domElement) -> Calendar._create domElement, null
+    @createReadOnly: (domElement) ->
+      Calendar._create domElement, null
+
     @createEditable: (domElement, handlers) ->
       return Calendar._create domElement, @_getEditableCalendarOptionsFactory handlers
 
     @_getEditableCalendarOptionsFactory: (handlers) ->
-      updateTaskFromEvent = (calendarTask) ->
-        taskStorage.update calendarTask, ->
+      updateTaskFromEvent = (event) ->
+        taskStorage.update event, ->
           handlers.onUpdate()
 
       return (calendar) ->
@@ -151,35 +152,34 @@
         eventResize: updateTaskFromEvent
 
         select: (start, end) ->
-          newCalendarTaskData = handlers.create start, end
-          if newCalendarTaskData?
-            taskStorage.create newCalendarTaskData, (newCalendarTask) =>
-              handlers.enhance newCalendarTask
-              calendar.do 'renderEvent', newCalendarTask
+          newEventData = handlers.create start, end
+          if newEventData?
+            taskStorage.create newEventData, (newEvent) =>
+              handlers.enhance newEvent
+              calendar.do 'renderEvent', newEvent
               handlers.onUpdate()
 
           calendar.do 'unselect'
 
-        eventClick: (calendarTask, jsEvent) ->
+        eventClick: (event, jsEvent) ->
           if not ($ jsEvent.target).hasClass 'ownClickProcessing'
-            editedTask = handlers.edit calendarTask
+            editedTask = handlers.edit event
             if editedTask?
-              calendar.do 'renderEvent', calendarTask
+              calendar.do 'renderEvent', event
               updateTaskFromEvent editedTask
 
-        eventRender: (calendarTask, domElement) ->
-          if calendarTask.editable
+        eventRender: (event, domElement) ->
+          if event.editable
             deleteLink = $ '<a class="addonScheduledTasks-taskDeleteLink ownClickProcessing">Х</a>'
             deleteLink.click ->
-              if window.confirm "Удалить задачу \"#{calendarTask.title}\"?"
-                taskStorage.delete calendarTask, ->
+              if window.confirm "Удалить задачу \"#{event.title}\"?"
+                taskStorage.delete event, ->
                   calendar.do 'removeEvents', (taskToConfirmRemoval) ->
-                    taskToConfirmRemoval is calendarTask
+                    taskToConfirmRemoval is event
                   handlers.onUpdate()
             domElement.append deleteLink
 
           return domElement
-
 
         events: (start, end, timezone, callback) ->
           Calendar._baseOptions.events start, end, timezone, (eventsList) ->
@@ -214,7 +214,12 @@
         right: 'agendaWeek,month'
       defaultView: 'agendaWeek'
       events: (start, end, unusedTimezone, callback) ->
-        taskStorage.getTasksForTimeRange start, end, callback
+        eventsList = taskStorage.getTasksForTimeRange start, end
+        for event in eventsList
+          entityHashPath = event.taskData.entityType + '/edit?id=' + event.entityId
+          event.url = location.href.replace location.hash, '#' + entityHashPath
+
+        callback eventsList
 
   taskStorage =
     _taskDataKey: 'entityTaskData'
@@ -224,57 +229,59 @@
         @_tasksData = taskData ? {}
         callback()
 
-    create: (calendarTaskData, callback) ->
+    create: (eventData, callback) ->
       newTaskData =
         entityType: moyskladUtils.currentEntity.getType()
-      entityId = calendarTaskData.entityId
+      entityId = eventData.entityId
       entityTasks = @_getEntityTasks entityId
 
       entityTasks.push newTaskData
 
-      @_updateTask newTaskData, calendarTaskData, =>
-        callback @_constructCalendarTask newTaskData, entityId
+      @_updateTask newTaskData, eventData, =>
+        callback @_constructEvent newTaskData, entityId
 
-    _updateTask: (taskData, calendarTaskData, callback) ->
-      entityId = calendarTaskData.entityId
+    _updateTask: (taskData, eventData, callback) ->
+      entityId = eventData.entityId
 
-      taskData.title = calendarTaskData.title
-      taskData.start = calendarTaskData.start.format()
-      taskData.end = calendarTaskData.end.format()
+      taskData.title = eventData.title
+      taskData.start = eventData.start.format()
+      taskData.end = eventData.end.format()
 
       @_saveEntityTasks entityId, callback
 
     _saveEntityTasks: (entityId, callback) ->
-      taistApi.companyData.setPart @_taskDataKey, entityId, (@_getEntityTasks entityId), -> callback()
+      taistApi.companyData.setPart @_taskDataKey, entityId, (@_getEntityTasks entityId), ->
+        callback()
 
-    update: (calendarTask, callback) ->
-      @_updateTask calendarTask.taskData, calendarTask, -> callback()
+    update: (event, callback) ->
+      @_updateTask event.taskData, event, ->
+        callback()
 
-    delete: (calendarTask, callback) ->
-      entityTasks = @_getEntityTasks calendarTask.entityId
-      entityTasks.splice (entityTasks.indexOf calendarTask.taskData), 1
-      @_saveEntityTasks calendarTask.entityId, callback
+    delete: (event, callback) ->
+      entityTasks = @_getEntityTasks event.entityId
+      entityTasks.splice (entityTasks.indexOf event.taskData), 1
+      @_saveEntityTasks event.entityId, callback
 
-    getTasksForTimeRange: (start, end, callback) ->
-      selectedTasks = []
+    getTasksForTimeRange: (start, end) ->
+      allFilteredEvents = []
       for entityId of @_tasksData
-        for taskData in @_getEntityTasks entityId
-          calendarTask = @_constructCalendarTask taskData, entityId
-
+        filteredEntityEvents = (@_getEntityEvents entityId).filter (event) ->
           #use inverted comparisons to account for equality
-          if (not calendarTask.start.isBefore start) && (not calendarTask.end.isAfter end)
-            selectedTasks.push calendarTask
+          (not event.start.isBefore start) && (not event.end.isAfter end)
 
-      callback selectedTasks
+        allFilteredEvents = allFilteredEvents.concat filteredEntityEvents
+
+      return allFilteredEvents
+
+    _getEntityEvents: (entityId) ->
+      ((@_constructEvent rawTask, entityId) for rawTask in @_getEntityTasks entityId)
 
     _getEntityTasks: (entityId) ->
       @_tasksData[entityId] ?= []
       return @_tasksData[entityId]
 
     getOrderedEntityTasks: (entityId) ->
-      rawTasks = @_getEntityTasks entityId
-      calendarTasks = ((@_constructCalendarTask rawTask, entityId) for rawTask in rawTasks)
-      return calendarTasks.sort (firstTask, secondTask) ->
+      (@_getEntityEvents entityId).sort (firstTask, secondTask) ->
         firstStart = moment firstTask.start
         secondStart = moment secondTask.start
 
@@ -286,13 +293,14 @@
           else 0
         )
 
-    _constructCalendarTask: (taskData, entityId) -> {
+    _constructEvent: (taskData, entityId) ->
+      {
       title: taskData.title
       start: moment taskData.start
       end: moment taskData.end
       entityId
       taskData
-    }
+      }
 
   moyskladUtils =
     _getMainContainer: ->
@@ -310,14 +318,20 @@
           mainContainer.empty()
           contentRenderer mainContainer
 
-      _createTopMenuItem: (itemName, itemSelectHandler) ->
+      _createTopMenuItem: (itemName, clickHandler) ->
         taistApi.wait.elementRender '.topMenu tr', (topMenu) =>
           newMenuItem = @_renderNewTopMenuItem topMenu, itemName
           newMenuItem.click =>
-            @_unselectMenuItems @_getAllMenuItems()
-            @_menuItemToggleSelected newMenuItem, true
-            @_clearSubMenu()
-            itemSelectHandler @_createNewMainContainer()
+            @_onCustomTopMenuItemClick newMenuItem, clickHandler
+
+      _onCustomTopMenuItemClick: (menuItem, clickHandler) ->
+        @_unselectMenuItems @_getAllMenuItems()
+        @_menuItemToggleSelected menuItem, true
+        @_clearSubMenu()
+
+        clickHandler @_createNewMainContainer()
+
+        @_forceUpdateOnHashChange()
 
       _renderNewTopMenuItem: (topMenu, itemName) ->
         @_processNativeMenuItemsClickBeforeAddingAnyCustomItem()
@@ -384,16 +398,19 @@
         #remove selection from native subMenu items
         activeItem.removeClass "active"
 
-        #clicking on custom items doesn't change hash
-        #so when clicking on the native item the hash is the same
-        #so "touch" it to force redrawing of native contents
-        activeItem.one "click", ->
-          currentHash = location.hash
+      _forceUpdateOnHashChange: ->
+        # moysklad rerenders only when hash changes
+        # so if we navigate from custom menu item but main hash part doesn't change,
+        # we have to force radical hash change to trigger rendering
+        currentHash = location.hash
+
+        taistApi.wait.once (location.hash != currentHash), ->
+          targetHash = location.hash
           location.hash = '#unexistingHashForRefresh'
           setTimeout (
             ->
-              location.hash = currentHash
-          ), 100
+              location.hash = targetHash
+          ), 150
 
       _unselectMenuItems: (menuItems) ->
         (@_menuItemToggleSelected ($ menuItem), no) for menuItem in menuItems
@@ -421,8 +438,8 @@
     uiPrimitives:
       button: (options) ->
         button = $ "<div role=\"button\" class=\"b-popup-button b-popup-button-enabled b-popup-button-gray #{options.classes}\" tabindex=\"0\">
-                                                          <table><colgroup><col></colgroup><tbody><tr><td></td><td><span class=\"text\">#{options.caption}</span></td></tr></tbody></table>
-                                                        </div>"
+                                                                  <table><colgroup><col></colgroup><tbody><tr><td></td><td><span class=\"text\">#{options.caption}</span></td></tr></tbody></table>
+                                                                </div>"
 
         if options.click?
           button.click options.click
