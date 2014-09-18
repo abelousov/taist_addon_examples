@@ -31,7 +31,7 @@
   };
   createGeneralCalendarDom = function(mainContainer) {
     var calendarElement;
-    calendarElement = $("<div></div>");
+    calendarElement = $("<div class=\"addonScheduledTasks-generalCalendar\"></div>");
     mainContainer.append(calendarElement);
     return Calendar.createReadOnly(calendarElement);
   };
@@ -44,7 +44,7 @@
 
     InDocCalendar.prototype._taskListElement = null;
 
-    InDocCalendar.prototype._calendarIsDisplayed = null;
+    InDocCalendar.prototype._calendarIsDisplayed = false;
 
     InDocCalendar.prototype._mainContentsTable = null;
 
@@ -57,6 +57,7 @@
 
     InDocCalendar.prototype.render = function() {
       var taskListContainer;
+      this._mainContainer.addClass("addonScheduledTasks-inDocMainContainer");
       this._mainContentsTable = this._mainContainer.children();
       this._mainContentsTable.addClass('addonScheduledTasks-inDocTopLevelElements');
       taskListContainer = $('<div class="addonScheduledTasks-inDocTopLevelElements addonScheduledTasks-inDocTasks"></div>');
@@ -88,6 +89,12 @@
       this._calendarElement.toggle();
       if (this._calendarIsDisplayed) {
         return this._calendar.scrollTo();
+      }
+    };
+
+    InDocCalendar.prototype._forceDisplayCalendar = function() {
+      if (!this._calendarIsDisplayed) {
+        return this._toggleCalendarDisplay();
       }
     };
 
@@ -160,9 +167,23 @@
     };
 
     InDocCalendar.prototype._renderTask = function(task) {
-      var taskDate;
+      var taskContents, taskDate, taskLink;
       taskDate = (task.start.format("DD.MM HH:mm - ")) + (task.end.format("HH:mm"));
-      return $("<div class=\"addonScheduledTasks-taskContents\">" + task.title + " - " + taskDate + "</div>");
+      taskContents = $("<div class=\"addonScheduledTasks-taskContents\"></div>");
+      taskContents.append($("<span>" + task.title + " - </span>"));
+      taskLink = $("<a>" + taskDate + "</a>");
+      taskLink.click((function(_this) {
+        return function() {
+          return _this._scrollCalendarToTask(task);
+        };
+      })(this));
+      taskContents.append(taskLink);
+      return taskContents;
+    };
+
+    InDocCalendar.prototype._scrollCalendarToTask = function(task) {
+      this._forceDisplayCalendar();
+      return this._calendar.scrollToMoment(task.start);
     };
 
     return InDocCalendar;
@@ -278,6 +299,10 @@
       if (this._domElement.height() > maxCalendarHeight) {
         return this["do"]('option', 'height', maxCalendarHeight);
       }
+    };
+
+    Calendar.prototype.scrollToMoment = function(moment) {
+      return this["do"]('gotoDate', moment);
     };
 
     Calendar._baseOptions = {
@@ -398,10 +423,11 @@
     }
   };
   moyskladUtils = {
-    _getMainContainer: function() {
-      var jqResult;
-      jqResult = ($('.lognex-ScreenWrapper')).add($('.l-fixed-width-page'));
-      return (jqResult.length > 0 ? $(jqResult[0]) : null);
+    _getDashboardMainContainer: function() {
+      return $('.l-fixed-width-page');
+    },
+    _getEntityContainer: function() {
+      return $('.lognex-ScreenWrapper');
     },
     topMenu: {
       addMenuItemWithoutSubItems: function(itemName, contentRenderer) {
@@ -422,16 +448,19 @@
         })(this));
       },
       _onCustomTopMenuItemClick: function(menuItem, clickHandler) {
-        this._unselectMenuItems(this._getAllMenuItems());
         this._menuItemToggleSelected(menuItem, true);
-        this._clearSubMenu();
-        clickHandler(this._createNewMainContainer());
-        return this._forceUpdateOnHashChange();
+        location.hash = 'dashboard';
+        return taistApi.wait.once((function() {
+          return moyskladUtils._getDashboardMainContainer().length > 0;
+        }), ((function(_this) {
+          return function() {
+            return clickHandler(_this._createNewMainContainer());
+          };
+        })(this)), 20);
       },
       _renderNewTopMenuItem: function(topMenu, itemName) {
         var itemsSeparator, menuItem;
-        this._processNativeMenuItemsClickBeforeAddingAnyCustomItem();
-        menuItem = $("<td class=\"" + this._topMenuItemClass + " " + this._customMenuItemClass + "\"><span title=\"" + itemName + "\" class=\"lognex-SpanHyperlink\" tabindex=\"0\"><a>" + itemName + "</a></span></td>");
+        menuItem = $("<td class=\"" + this._topMenuItemClass + "\"><span title=\"" + itemName + "\" class=\"lognex-SpanHyperlink\" tabindex=\"0\"><a>" + itemName + "</a></span></td>");
         itemsSeparator = $('<td class="topMenu-separator"></td>');
         topMenu.append(menuItem, itemsSeparator);
         return menuItem;
@@ -441,87 +470,30 @@
         return menuItem.toggleClass(this._topMenuItemClass, !selected);
       },
       _createNewMainContainer: function() {
-        var elementToReplace, newMainContainer, parent, replacement;
-        elementToReplace = moyskladUtils._getMainContainer().parent().parent();
-        parent = elementToReplace.parent();
-        replacement = elementToReplace.clone();
-        elementToReplace.hide();
-        newMainContainer = replacement.children().children();
-        newMainContainer.empty();
-        parent.append(replacement);
-        return newMainContainer;
-      },
-      _processNativeMenuItemsClickBeforeAddingAnyCustomItem: function() {
-        var nativeMenuItems;
-        if (!this._nativeMenuItemsClickProcessed) {
-          this._nativeMenuItemsClickProcessed = true;
-          nativeMenuItems = this._getAllMenuItems();
-          return nativeMenuItems.click((function(_this) {
-            return function() {
-              _this._unselectCustomMenuItems();
-              return _this._restoreSubMenu();
-            };
-          })(this));
-        }
-      },
-      _unselectCustomMenuItems: function() {
-        return this._menuItemToggleSelected($('.' + this._customMenuItemClass), false);
+        var grandParent, nativeContainer, newContainer, newParent, oldParent;
+        nativeContainer = moyskladUtils._getDashboardMainContainer();
+        oldParent = nativeContainer.parent();
+        grandParent = oldParent.parent();
+        newParent = $('<div class="mainCustomContainer"></div>');
+        newParent.hide();
+        newParent.append(nativeContainer);
+        grandParent.append(newParent);
+        newContainer = $('<div></div>');
+        oldParent.append(newContainer);
+        return newContainer;
       },
       _topMenuItemClass: 'topMenuItem',
-      _selectedTopMenuItemClass: 'topMenuItem-selected',
-      _customMenuItemClass: 'topMenuItemFromAddon',
-      _getAllMenuItems: function() {
-        return ($('.' + this._topMenuItemClass)).add($('.' + this._selectedTopMenuItemClass));
-      },
-      _clearSubMenu: function() {
-        this._getSubMenu().hide();
-        return this._resetCurrentNativeSubMenuItem();
-      },
-      _restoreSubMenu: function() {
-        return this._getSubMenu().show();
-      },
-      _getSubMenu: function() {
-        return $('.subMenu');
-      },
-      _resetCurrentNativeSubMenuItem: function() {
-        var activeItem;
-        activeItem = this._getSubMenu().find(".active");
-        return activeItem.removeClass("active");
-      },
-      _forceUpdateOnHashChange: function() {
-        var currentHash;
-        currentHash = location.hash;
-        return taistApi.wait.once(location.hash !== currentHash, function() {
-          var targetHash;
-          targetHash = location.hash;
-          location.hash = '#unexistingHashForRefresh';
-          return setTimeout((function() {
-            return location.hash = targetHash;
-          }), 150);
-        });
-      },
-      _unselectMenuItems: function(menuItems) {
-        var menuItem, _i, _len, _results;
-        _results = [];
-        for (_i = 0, _len = menuItems.length; _i < _len; _i++) {
-          menuItem = menuItems[_i];
-          _results.push(this._menuItemToggleSelected($(menuItem), false));
-        }
-        return _results;
-      }
+      _selectedTopMenuItemClass: 'topMenuItem-selected'
     },
     currentEntity: {
       _idInHashRegexp: new RegExp('\\?id=[\\w\\-]*$'),
       onDisplay: function(handler) {
         return taistApi.hash.when(this._idInHashRegexp, (function(_this) {
           return function() {
-            var mainContainerRenderedCondition;
-            mainContainerRenderedCondition = function() {
-              var _ref;
-              return ((_ref = moyskladUtils._getMainContainer()) != null ? _ref.children('table').length : void 0) > 0;
-            };
-            return taistApi.wait.once(mainContainerRenderedCondition, function() {
-              return handler(_this.getId(), moyskladUtils._getMainContainer());
+            return taistApi.wait.once((function() {
+              return moyskladUtils._getEntityContainer().children('table').length > 0;
+            }), function() {
+              return handler(_this.getId(), moyskladUtils._getEntityContainer());
             });
           };
         })(this));

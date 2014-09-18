@@ -27,7 +27,7 @@
       (new InDocCalendar entityId, mainContainer).render()
 
   createGeneralCalendarDom = (mainContainer) ->
-    calendarElement = $ "<div></div>"
+    calendarElement = $ "<div class=\"addonScheduledTasks-generalCalendar\"></div>"
 
     #calendar element should be appended to the dom before rendering the calendar
     mainContainer.append calendarElement
@@ -39,12 +39,13 @@
     _mainContainer: null
     _calendarElement: null
     _taskListElement: null
-    _calendarIsDisplayed: null
+    _calendarIsDisplayed: no
     _mainContentsTable: null
     _calendar: null
     constructor: (@_entityId, @_mainContainer) ->
 
     render: ->
+      @_mainContainer.addClass "addonScheduledTasks-inDocMainContainer"
       @_mainContentsTable = @_mainContainer.children()
       @_mainContentsTable.addClass 'addonScheduledTasks-inDocTopLevelElements'
       taskListContainer = $ '<div class="addonScheduledTasks-inDocTopLevelElements addonScheduledTasks-inDocTasks"></div>'
@@ -74,6 +75,10 @@
 
       if @_calendarIsDisplayed
         @_calendar.scrollTo()
+
+    _forceDisplayCalendar: ->
+      if not @_calendarIsDisplayed
+        @_toggleCalendarDisplay()
 
     _renderCalendar: ->
       @_calendarElement = $ '<div class="addonScheduledTasks-inDocCalendar"></div>'
@@ -127,7 +132,19 @@
 
     _renderTask: (task) ->
       taskDate = (task.start.format "DD.MM HH:mm - ") + (task.end.format "HH:mm")
-      $ """<div class="addonScheduledTasks-taskContents">#{task.title} - #{taskDate}</div>"""
+      taskContents = $ """<div class="addonScheduledTasks-taskContents"></div>"""
+      taskContents.append $ "<span>#{task.title} - </span>"
+      taskLink = $ "<a>#{taskDate}</a>"
+      taskLink.click =>
+        @_scrollCalendarToTask task
+
+      taskContents.append taskLink
+
+      return taskContents
+
+    _scrollCalendarToTask: (task) ->
+      @_forceDisplayCalendar()
+      @_calendar.scrollToMoment task.start
 
   class Calendar
     _screenBorderMargin: 20
@@ -206,6 +223,9 @@
       maxCalendarHeight = window.innerHeight - 2 * @_screenBorderMargin
       if @_domElement.height() > maxCalendarHeight
         @do 'option', 'height', maxCalendarHeight
+
+    scrollToMoment: (moment) ->
+      @do 'gotoDate', moment
 
     @_baseOptions:
       header:
@@ -303,15 +323,10 @@
       }
 
   moyskladUtils =
-    _getMainContainer: ->
-      #on most pages '.lognex-ScreenWrapper' exists but on /#dashboard other selector is used
-      jqResult = ($ '.lognex-ScreenWrapper').add ($ '.l-fixed-width-page')
+    _getDashboardMainContainer: -> $ '.l-fixed-width-page'
 
-      return (
-        if jqResult.length > 0
-          $ jqResult[0]
-        else null
-      )
+    _getEntityContainer: -> $ '.lognex-ScreenWrapper'
+
     topMenu:
       addMenuItemWithoutSubItems: (itemName, contentRenderer) ->
         @_createTopMenuItem itemName, (mainContainer) ->
@@ -325,18 +340,15 @@
             @_onCustomTopMenuItemClick newMenuItem, clickHandler
 
       _onCustomTopMenuItemClick: (menuItem, clickHandler) ->
-        @_unselectMenuItems @_getAllMenuItems()
+        # navigate to dashboard as less frequently used with own structure that can be easily adopted
+        # to make more stable any next navigation from custom item - to keep all links working
+        # also we cannot set custom hash - it will return to dashboard
         @_menuItemToggleSelected menuItem, true
-        @_clearSubMenu()
-
-        clickHandler @_createNewMainContainer()
-
-        @_forceUpdateOnHashChange()
+        location.hash = 'dashboard'
+        taistApi.wait.once (-> moyskladUtils._getDashboardMainContainer().length > 0), (=> clickHandler @_createNewMainContainer()), 20
 
       _renderNewTopMenuItem: (topMenu, itemName) ->
-        @_processNativeMenuItemsClickBeforeAddingAnyCustomItem()
-
-        menuItem = $ """<td class="#{@_topMenuItemClass} #{@_customMenuItemClass}"><span title="#{itemName}" class="lognex-SpanHyperlink" tabindex="0"><a>#{itemName}</a></span></td>"""
+        menuItem = $ """<td class="#{@_topMenuItemClass}"><span title="#{itemName}" class="lognex-SpanHyperlink" tabindex="0"><a>#{itemName}</a></span></td>"""
         itemsSeparator = $ '<td class="topMenu-separator"></td>'
         topMenu.append menuItem, itemsSeparator
 
@@ -347,83 +359,36 @@
         menuItem.toggleClass @_topMenuItemClass, !selected
 
       _createNewMainContainer: ->
-        #mainContainer and its parent element are cached for each sub menu item, so we have to replace their parent
-        elementToReplace = moyskladUtils._getMainContainer().parent().parent()
+        # dashboard container should exist and be linked to DOM, or everything breaks
+        # when a user revisits dashboard, the container will be relinked to a new fresh parent element,
+        # so now we can just append it to a new invisible div
+        nativeContainer = moyskladUtils._getDashboardMainContainer()
 
-        parent = elementToReplace.parent()
+        oldParent = nativeContainer.parent()
+        grandParent = oldParent.parent()
 
-        replacement = elementToReplace.clone()
-        elementToReplace.hide()
+        newParent = $ '<div class="mainCustomContainer"></div>'
+        newParent.hide()
+        newParent.append nativeContainer
+        grandParent.append newParent
 
-        #each of elements has only one child - use this to find new mainContainer
-        newMainContainer = replacement.children().children()
-        newMainContainer.empty()
+        newContainer = $ '<div></div>'
 
-        parent.append replacement
-        return newMainContainer
+        oldParent.append newContainer
 
-      _processNativeMenuItemsClickBeforeAddingAnyCustomItem: ->
-        if not @_nativeMenuItemsClickProcessed
-          @_nativeMenuItemsClickProcessed = true
-
-          #suppose that there are only native items now
-          nativeMenuItems = @_getAllMenuItems()
-          nativeMenuItems.click =>
-            @_unselectCustomMenuItems()
-            @_restoreSubMenu()
-
-      _unselectCustomMenuItems: ->
-        @_menuItemToggleSelected ($ '.' + @_customMenuItemClass), no
+        return newContainer
 
       _topMenuItemClass: 'topMenuItem'
       _selectedTopMenuItemClass: 'topMenuItem-selected'
-      _customMenuItemClass: 'topMenuItemFromAddon'
-      _getAllMenuItems: ->
-        ($ '.' + @_topMenuItemClass).add($ '.' + @_selectedTopMenuItemClass)
-
-      _clearSubMenu: ->
-        #hide native subMenu as it will be reused in native menu item
-        @_getSubMenu().hide()
-        @_resetCurrentNativeSubMenuItem()
-
-      _restoreSubMenu: ->
-        @_getSubMenu().show()
-
-      _getSubMenu: ->
-        $ '.subMenu'
-
-      _resetCurrentNativeSubMenuItem: ->
-        activeItem = @_getSubMenu().find ".active"
-
-        #remove selection from native subMenu items
-        activeItem.removeClass "active"
-
-      _forceUpdateOnHashChange: ->
-        # moysklad rerenders only when hash changes
-        # so if we navigate from custom menu item but main hash part doesn't change,
-        # we have to force radical hash change to trigger rendering
-        currentHash = location.hash
-
-        taistApi.wait.once (location.hash != currentHash), ->
-          targetHash = location.hash
-          location.hash = '#unexistingHashForRefresh'
-          setTimeout (
-            ->
-              location.hash = targetHash
-          ), 150
-
-      _unselectMenuItems: (menuItems) ->
-        (@_menuItemToggleSelected ($ menuItem), no) for menuItem in menuItems
 
     currentEntity:
       _idInHashRegexp: new RegExp '\\?id=[\\w\\-]*$'
       onDisplay: (handler) ->
+        # all main DOM elements are preserverd and used many times, so wait.elementRender will not work - look for hash change here
         taistApi.hash.when @_idInHashRegexp, =>
-          mainContainerRenderedCondition = ->
-            moyskladUtils._getMainContainer()?.children('table').length > 0
-
-          taistApi.wait.once mainContainerRenderedCondition, =>
-            handler @getId(), moyskladUtils._getMainContainer()
+          # will wait for element to render - first time it takes some time
+          taistApi.wait.once (-> moyskladUtils._getEntityContainer().children('table').length > 0), =>
+            handler @getId(), moyskladUtils._getEntityContainer()
 
       getId: ->
         idSubstring = (@_idInHashRegexp.exec location.hash)[0]
