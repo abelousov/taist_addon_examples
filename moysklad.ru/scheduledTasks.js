@@ -448,15 +448,24 @@
         })(this));
       },
       _onCustomTopMenuItemClick: function(menuItem, clickHandler) {
+        var currentHash;
         this._menuItemToggleSelected(menuItem, true);
         location.hash = 'dashboard';
-        return taistApi.wait.once((function() {
+        taistApi.wait.once((function() {
           return moyskladUtils._getDashboardMainContainer().length > 0;
         }), ((function(_this) {
           return function() {
             return clickHandler(_this._createNewMainContainer());
           };
         })(this)), 20);
+        currentHash = location.hash;
+        return taistApi.wait.once((function() {
+          return location.hash !== currentHash;
+        }), (function(_this) {
+          return function() {
+            return _this._menuItemToggleSelected(menuItem, false);
+          };
+        })(this));
       },
       _renderNewTopMenuItem: function(topMenu, itemName) {
         var itemsSeparator, menuItem;

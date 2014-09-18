@@ -347,6 +347,10 @@
         location.hash = 'dashboard'
         taistApi.wait.once (-> moyskladUtils._getDashboardMainContainer().length > 0), (=> clickHandler @_createNewMainContainer()), 20
 
+        currentHash = location.hash
+        taistApi.wait.once (-> location.hash != currentHash), =>
+          @_menuItemToggleSelected menuItem, false
+
       _renderNewTopMenuItem: (topMenu, itemName) ->
         menuItem = $ """<td class="#{@_topMenuItemClass}"><span title="#{itemName}" class="lognex-SpanHyperlink" tabindex="0"><a>#{itemName}</a></span></td>"""
         itemsSeparator = $ '<td class="topMenu-separator"></td>'
