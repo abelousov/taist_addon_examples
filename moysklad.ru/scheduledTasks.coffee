@@ -346,7 +346,6 @@
       $ '.b-application-panel > tbody > tr:nth-child(3) > td > *'
 
     topMenu:
-
       addMenuItemWithoutSubItems: (itemName, contentRenderer) ->
         @_createTopMenuItem itemName, (mainContainer) ->
           contentRenderer mainContainer
@@ -375,19 +374,32 @@
       _onCustomTopMenuItemClick: (menuItem, clickHandler) ->
         @_menuItemToggleSelected menuItem, true
 
-        # navigate to dashboard as less frequently used with own structure that can be easily adopted
-        # to make more stable any next navigation from custom item - to keep all links working
-        # also we cannot set custom hash - it will return to dashboard
-        location.hash = 'dashboard'
-        taistApi.wait.once (-> moyskladUtils._getDashboardMainContainer().length > 0), (=>
-          #now two menu items are selected - dashboard and our custom menu item, so deselect dashboard
-          dashboardMenuItem = ($ ".#{@_selectedTopMenuItemClass}").not ".#{@_customMenuItemClass}"
-          @_menuItemToggleSelected dashboardMenuItem, no
+        @_navigateToHostMenuItem =>
+          # now two menu items are selected - native one and and our custom menu item, so deselect native one
+          selectedNativeMenuItem = ($ ".#{@_selectedTopMenuItemClass}").not ".#{@_customMenuItemClass}"
+          @_menuItemToggleSelected selectedNativeMenuItem, off
           @_clearSubMenu()
           @_processLeavingFromCustomMenuItem menuItem
 
           clickHandler @_createNewMainContainer()
-        ), 20
+
+      _navigateToHostMenuItem: (callback) ->
+        # we cannot set some custom hash - it anyway navigates to a default path
+        # so we navigate to that default path directly
+        targetHash = @_getTargetHashForCustomMenuItem()
+        if location.hash is targetHash
+          callback()
+        else
+          currentContainer = moyskladUtils._getEntityContainer()[0]
+          location.hash = targetHash
+          #wait for target menu item rendering first
+          taistApi.wait.once (-> currentContainer != moyskladUtils._getEntityContainer()[0]), callback, 20
+
+      _getTargetHashForCustomMenuItem: ->
+        if entryPoint is 'user'
+          '#dashboard'
+        else
+          '#dictionaries'
 
       _processLeavingFromCustomMenuItem: (menuItem) ->
         currentHash = location.hash
@@ -399,7 +411,7 @@
         ($ '.' + @_topMenuItemClass).add($ '.' + @_selectedTopMenuItemClass)
 
       _clearSubMenu: ->
-        #hide native subMenu as it will be reused in native menu item
+        # hide native subMenu as it will be reused in native menu item
         @_getSubMenu().hide()
 
       _restoreSubMenu: ->

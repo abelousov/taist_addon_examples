@@ -484,19 +484,36 @@
       },
       _onCustomTopMenuItemClick: function(menuItem, clickHandler) {
         this._menuItemToggleSelected(menuItem, true);
-        location.hash = 'dashboard';
-        return taistApi.wait.once((function() {
-          return moyskladUtils._getDashboardMainContainer().length > 0;
-        }), ((function(_this) {
+        return this._navigateToHostMenuItem((function(_this) {
           return function() {
-            var dashboardMenuItem;
-            dashboardMenuItem = ($("." + _this._selectedTopMenuItemClass)).not("." + _this._customMenuItemClass);
-            _this._menuItemToggleSelected(dashboardMenuItem, false);
+            var selectedNativeMenuItem;
+            selectedNativeMenuItem = ($("." + _this._selectedTopMenuItemClass)).not("." + _this._customMenuItemClass);
+            _this._menuItemToggleSelected(selectedNativeMenuItem, false);
             _this._clearSubMenu();
             _this._processLeavingFromCustomMenuItem(menuItem);
             return clickHandler(_this._createNewMainContainer());
           };
-        })(this)), 20);
+        })(this));
+      },
+      _navigateToHostMenuItem: function(callback) {
+        var currentContainer, targetHash;
+        targetHash = this._getTargetHashForCustomMenuItem();
+        if (location.hash === targetHash) {
+          return callback();
+        } else {
+          currentContainer = moyskladUtils._getEntityContainer()[0];
+          location.hash = targetHash;
+          return taistApi.wait.once((function() {
+            return currentContainer !== moyskladUtils._getEntityContainer()[0];
+          }), callback, 20);
+        }
+      },
+      _getTargetHashForCustomMenuItem: function() {
+        if (entryPoint === 'user') {
+          return '#dashboard';
+        } else {
+          return '#dictionaries';
+        }
       },
       _processLeavingFromCustomMenuItem: function(menuItem) {
         var currentHash;
