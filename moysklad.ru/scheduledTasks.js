@@ -482,27 +482,36 @@
       },
       _onCustomTopMenuItemClick: function(menuItem, clickHandler) {
         this._menuItemToggleSelected(menuItem, true);
-        return this._navigateToHostMenuItem((function(_this) {
+        return this._navigateToCustomMenuItem((function(_this) {
           return function() {
             _this._unselectMenuItems("." + _this._selectedTopMenuItemClass + ":not(." + _this._customMenuItemClass + ")");
             _this._clearSubMenu();
-            _this._processLeavingFromCustomMenuItem(menuItem);
+            _this._prepareForLeavingFromCustomMenuItem(menuItem);
             return clickHandler(_this._createNewMainContainer());
           };
         })(this));
       },
-      _navigateToHostMenuItem: function(callback) {
+      _navigateToCustomMenuItem: function(callback) {
         var currentContainer, targetHash;
         targetHash = this._getTargetHashForCustomMenuItem();
         if (location.hash === targetHash) {
           return callback();
         } else {
+          this._toggleNavigationToCustomMenuItem(true);
           currentContainer = moyskladUtils._getContentsContainer()[0];
           location.hash = targetHash;
           return taistApi.wait.once((function() {
             return currentContainer !== moyskladUtils._getContentsContainer()[0];
-          }), callback, 20);
+          }), ((function(_this) {
+            return function() {
+              _this._toggleNavigationToCustomMenuItem(false);
+              return callback();
+            };
+          })(this)), 20);
         }
+      },
+      _toggleNavigationToCustomMenuItem: function(toggle) {
+        return moyskladUtils._getMainPanel().toggleClass('addonScheduledTasks-navigatingToCustomItem', toggle);
       },
       _getTargetHashForCustomMenuItem: function() {
         if (entryPoint === 'user') {
@@ -511,7 +520,7 @@
           return '#dictionaries';
         }
       },
-      _processLeavingFromCustomMenuItem: function(menuItem) {
+      _prepareForLeavingFromCustomMenuItem: function(menuItem) {
         var currentHash;
         currentHash = location.hash;
         return taistApi.wait.once((function() {

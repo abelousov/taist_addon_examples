@@ -7,6 +7,23 @@
   vertical-align: middle;
 }
 
+/* mask contents of target native menu item when using it for rendering a custom item: */
+
+/* hide its contents*/
+.addonScheduledTasks-navigatingToCustomItem > tbody > tr:nth-child(3) {
+  visibility: hidden;
+}
+
+/* keep it unselected */
+.addonScheduledTasks-navigatingToCustomItem .topMenuItem-selected {
+  background-color: #e4f1fa !important;
+}
+
+/* hide its submenu */
+.addonScheduledTasks-navigatingToCustomItem .subMenu {
+  visibility: hidden;
+}
+
 .addonScheduledTasks-inDocMainContainer {
   /*preserve task list position to the right of main content*/
   white-space: nowrap;

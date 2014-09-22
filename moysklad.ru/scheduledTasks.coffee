@@ -369,26 +369,33 @@
             @_restoreSubMenu()
 
       _onCustomTopMenuItemClick: (menuItem, clickHandler) ->
-        @_menuItemToggleSelected menuItem, true
-        @_navigateToHostMenuItem =>
+        @_menuItemToggleSelected menuItem, on
+        @_navigateToCustomMenuItem =>
           # now two menu items are selected - native one and and our custom menu item, so deselect native one
           @_unselectMenuItems ".#{@_selectedTopMenuItemClass}:not(.#{@_customMenuItemClass})"
           @_clearSubMenu()
-          @_processLeavingFromCustomMenuItem menuItem
+          @_prepareForLeavingFromCustomMenuItem menuItem
 
           clickHandler @_createNewMainContainer()
 
-      _navigateToHostMenuItem: (callback) ->
+      _navigateToCustomMenuItem: (callback) ->
         # we cannot set some custom hash - it anyway navigates to a default path
         # so we navigate to that default path directly
         targetHash = @_getTargetHashForCustomMenuItem()
         if location.hash is targetHash
           callback()
         else
+          @_toggleNavigationToCustomMenuItem on
           currentContainer = moyskladUtils._getContentsContainer()[0]
           location.hash = targetHash
           #wait for target menu item rendering first
-          taistApi.wait.once (-> currentContainer != moyskladUtils._getContentsContainer()[0]), callback, 20
+          taistApi.wait.once (-> currentContainer != moyskladUtils._getContentsContainer()[0]), (=>
+            @_toggleNavigationToCustomMenuItem off
+            callback()
+          ), 20
+
+      _toggleNavigationToCustomMenuItem: (toggle) ->
+        moyskladUtils._getMainPanel().toggleClass 'addonScheduledTasks-navigatingToCustomItem', toggle
 
       _getTargetHashForCustomMenuItem: ->
         if entryPoint is 'user'
@@ -396,7 +403,7 @@
         else
           '#dictionaries'
 
-      _processLeavingFromCustomMenuItem: (menuItem) ->
+      _prepareForLeavingFromCustomMenuItem: (menuItem) ->
         currentHash = location.hash
         taistApi.wait.once (-> location.hash != currentHash), =>
           @_menuItemToggleSelected menuItem, off
