@@ -2,9 +2,11 @@
   taistApi = null
   moyskladUtils = null
   taskStorage = null
+  entryPoint = null
 
-  start = (_taistApi) ->
+  start = (_taistApi, _entryPoint) ->
     taistApi = _taistApi
+    entryPoint = _entryPoint
     taistApi.haltOnError = true
 
     taistApi.wait.once (->
@@ -243,11 +245,25 @@
 
   taskStorage =
     _taskDataKey: 'entityTaskData'
+    _calendarsKey: 'calendars'
     _tasksData: null
+    _calendars: null
     init: (callback) ->
-      taistApi.companyData.get @_taskDataKey, (taskData) =>
-        @_tasksData = taskData ? {}
-        callback()
+      @_loadCalendars =>
+        taistApi.companyData.get @_taskDataKey, (taskData) =>
+          @_tasksData = taskData ? {}
+          callback()
+
+    _loadCalendars: (callback) ->
+      taistApi.companyData.get @_calendarsKey, (calendars) =>
+        @_calendars = calendars
+        if @_calendars?
+          callback()
+        else
+          @_calendars = ["Общий"]
+          @_storeCalendars callback
+
+    _storeCalendars: (callback) -> taistApi.companyData.set @_calendarsKey, @_calendars, callback
 
     create: (eventData, callback) ->
       newTaskData =
@@ -330,33 +346,74 @@
     topMenu:
       addMenuItemWithoutSubItems: (itemName, contentRenderer) ->
         @_createTopMenuItem itemName, (mainContainer) ->
-          mainContainer.empty()
           contentRenderer mainContainer
 
       _createTopMenuItem: (itemName, clickHandler) ->
         taistApi.wait.elementRender '.topMenu tr', (topMenu) =>
+          @_prepareNativeMenuForAddingCustomMenuItems()
+
           newMenuItem = @_renderNewTopMenuItem topMenu, itemName
           newMenuItem.click =>
             @_onCustomTopMenuItemClick newMenuItem, clickHandler
 
+      _prepareNativeMenuForAddingCustomMenuItems: ->
+        if not @_nativeMenuPrepared
+          @_nativeMenuPrepared = true
+
+          #suppose that there are only native items now
+          nativeMenuItems = @_getAllMenuItems()
+          nativeMenuItems.click =>
+            @_unselectCustomMenuItems()
+            @_restoreSubMenu()
+
+      _unselectCustomMenuItems: ->
+        @_menuItemToggleSelected ($ '.' + @_customMenuItemClass), no
+
       _onCustomTopMenuItemClick: (menuItem, clickHandler) ->
+        @_menuItemToggleSelected menuItem, true
+
         # navigate to dashboard as less frequently used with own structure that can be easily adopted
         # to make more stable any next navigation from custom item - to keep all links working
         # also we cannot set custom hash - it will return to dashboard
-        @_menuItemToggleSelected menuItem, true
         location.hash = 'dashboard'
-        taistApi.wait.once (-> moyskladUtils._getDashboardMainContainer().length > 0), (=> clickHandler @_createNewMainContainer()), 20
+        taistApi.wait.once (-> moyskladUtils._getDashboardMainContainer().length > 0), (=>
+          #now two menu items are selected - dashboard and our custom menu item, so deselect dashboard
+          dashboardMenuItem = ($ ".#{@_selectedTopMenuItemClass}").not ".#{@_customMenuItemClass}"
+          @_menuItemToggleSelected dashboardMenuItem, no
+          @_clearSubMenu()
+          @_processLeavingFromCustomMenuItem menuItem
 
+          clickHandler @_createNewMainContainer()
+        ), 20
+
+      _processLeavingFromCustomMenuItem: (menuItem) ->
         currentHash = location.hash
         taistApi.wait.once (-> location.hash != currentHash), =>
           @_menuItemToggleSelected menuItem, false
+          @_restoreSubMenu()
+
+      _getAllMenuItems: ->
+        ($ '.' + @_topMenuItemClass).add($ '.' + @_selectedTopMenuItemClass)
+
+      _clearSubMenu: ->
+        #hide native subMenu as it will be reused in native menu item
+        @_getSubMenu().hide()
+
+      _restoreSubMenu: ->
+        @_getSubMenu().show()
 
       _renderNewTopMenuItem: (topMenu, itemName) ->
-        menuItem = $ """<td class="#{@_topMenuItemClass}"><span title="#{itemName}" class="lognex-SpanHyperlink" tabindex="0"><a>#{itemName}</a></span></td>"""
+        menuItem = $ """<td class="#{@_topMenuItemClass} #{@_customMenuItemClass}"><span title="#{itemName}" class="lognex-SpanHyperlink" tabindex="0"><a>#{itemName}</a></span></td>"""
         itemsSeparator = $ '<td class="topMenu-separator"></td>'
         topMenu.append menuItem, itemsSeparator
 
         return menuItem
+
+      _getSubMenu: ->
+        $ '.subMenu'
+
+      _unselectMenuItems: (menuItems) ->
+        (@_menuItemToggleSelected ($ menuItem), no) for menuItem in menuItems
 
       _menuItemToggleSelected: (menuItem, selected) ->
         menuItem.toggleClass @_selectedTopMenuItemClass, selected
@@ -382,6 +439,7 @@
 
         return newContainer
 
+      _customMenuItemClass: 'topMenuItemFromAddon'
       _topMenuItemClass: 'topMenuItem'
       _selectedTopMenuItemClass: 'topMenuItem-selected'
 
