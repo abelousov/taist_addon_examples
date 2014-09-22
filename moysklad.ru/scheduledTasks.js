@@ -484,10 +484,12 @@
         this._menuItemToggleSelected(menuItem, true);
         return this._navigateToCustomMenuItem((function(_this) {
           return function() {
+            var containers, defaultSubItem;
             _this._unselectMenuItems("." + _this._selectedTopMenuItemClass + ":not(." + _this._customMenuItemClass + ")");
-            _this._clearSubMenu();
-            _this._prepareForLeavingFromCustomMenuItem(menuItem);
-            return clickHandler(_this._createNewMainContainer());
+            defaultSubItem = _this._clearSubMenu();
+            containers = _this._createNewMainContainer();
+            _this._prepareForLeavingFromCustomMenuItem(menuItem, defaultSubItem, containers);
+            return clickHandler(containers.customContents);
           };
         })(this));
       },
@@ -497,21 +499,21 @@
         if (location.hash === targetHash) {
           return callback();
         } else {
-          this._toggleNavigationToCustomMenuItem(true);
+          this._toggleNavigationToMenuItem(true);
           currentContainer = moyskladUtils._getContentsContainer()[0];
           location.hash = targetHash;
           return taistApi.wait.once((function() {
             return currentContainer !== moyskladUtils._getContentsContainer()[0];
           }), ((function(_this) {
             return function() {
-              _this._toggleNavigationToCustomMenuItem(false);
+              _this._toggleNavigationToMenuItem(false);
               return callback();
             };
           })(this)), 20);
         }
       },
-      _toggleNavigationToCustomMenuItem: function(toggle) {
-        return moyskladUtils._getMainPanel().toggleClass('addonScheduledTasks-navigatingToCustomItem', toggle);
+      _toggleNavigationToMenuItem: function(toggle) {
+        return moyskladUtils._getMainPanel().toggleClass('addonScheduledTasks-forcedNavigationToMenuItem', toggle);
       },
       _getTargetHashForCustomMenuItem: function() {
         if (entryPoint === 'user') {
@@ -520,15 +522,22 @@
           return '#dictionaries';
         }
       },
-      _prepareForLeavingFromCustomMenuItem: function(menuItem) {
-        var currentHash;
+      _prepareForLeavingFromCustomMenuItem: function(menuItem, defaultSubItem, containers) {
+        var currentHash, manuallyRenderDefaultSubItem;
         currentHash = location.hash;
-        return taistApi.wait.once((function() {
+        taistApi.wait.once((function() {
           return location.hash !== currentHash;
         }), (function(_this) {
           return function() {
-            _this._menuItemToggleSelected(menuItem, false);
-            return _this._restoreSubMenu();
+            return _this._menuItemToggleSelected(menuItem, false);
+          };
+        })(this));
+        return defaultSubItem.click(manuallyRenderDefaultSubItem = (function(_this) {
+          return function() {
+            defaultSubItem.off('click', manuallyRenderDefaultSubItem);
+            containers.nativeParent.empty();
+            containers.nativeParent.append(containers.nativeContentsStorage.children());
+            return containers.nativeContentsStorage.remove();
           };
         })(this));
       },
@@ -536,7 +545,12 @@
         return ($('.' + this._topMenuItemClass)).add($('.' + this._selectedTopMenuItemClass));
       },
       _clearSubMenu: function() {
-        return this._getSubMenu().hide();
+        var activeSubMenuItem, subMenu;
+        subMenu = this._getSubMenu();
+        subMenu.hide();
+        activeSubMenuItem = subMenu.find('.active');
+        activeSubMenuItem.removeClass('active');
+        return activeSubMenuItem;
       },
       _restoreSubMenu: function() {
         return this._getSubMenu().show();
@@ -559,17 +573,20 @@
         return menuItem.toggleClass(this._topMenuItemClass, !selected);
       },
       _createNewMainContainer: function() {
-        var grandParent, nativeContainer, newContainer, newParent, oldParent;
-        nativeContainer = moyskladUtils._getContentsContainer();
-        oldParent = nativeContainer.parent();
-        grandParent = oldParent.parent();
-        newParent = $('<div class="mainCustomContainer"></div>');
-        newParent.hide();
-        newParent.append(nativeContainer);
-        grandParent.append(newParent);
-        newContainer = $('<div></div>');
-        oldParent.append(newContainer);
-        return newContainer;
+        var customContents, grandParent, nativeContents, nativeContentsStorage, nativeParent;
+        nativeContents = moyskladUtils._getContentsContainer();
+        nativeParent = nativeContents.parent();
+        customContents = $('<div></div>');
+        nativeParent.append(customContents);
+        nativeContentsStorage = $('<div class="addonScheduledTasks-tempParentForHiddenNativeContent"></div>');
+        nativeContentsStorage.append(nativeContents);
+        grandParent = nativeParent.parent();
+        grandParent.append(nativeContentsStorage);
+        return {
+          nativeParent: nativeParent,
+          nativeContentsStorage: nativeContentsStorage,
+          customContents: customContents
+        };
       },
       _customMenuItemClass: 'topMenuItemFromAddon',
       _topMenuItemClass: 'topMenuItem',

@@ -10,18 +10,22 @@
 /* mask contents of target native menu item when using it for rendering a custom item: */
 
 /* hide its contents*/
-.addonScheduledTasks-navigatingToCustomItem > tbody > tr:nth-child(3) {
+.addonScheduledTasks-forcedNavigationToMenuItem > tbody > tr:nth-child(3) {
   visibility: hidden;
 }
 
 /* keep it unselected */
-.addonScheduledTasks-navigatingToCustomItem .topMenuItem-selected {
+.addonScheduledTasks-forcedNavigationToMenuItem .topMenuItem-selected {
   background-color: #e4f1fa !important;
 }
 
 /* hide its submenu */
-.addonScheduledTasks-navigatingToCustomItem .subMenu {
+.addonScheduledTasks-forcedNavigationToMenuItem .subMenu {
   visibility: hidden;
+}
+
+.addonScheduledTasks-tempParentForHiddenNativeContent {
+  display: none;
 }
 
 .addonScheduledTasks-inDocMainContainer {

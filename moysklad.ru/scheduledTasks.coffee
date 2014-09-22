@@ -373,10 +373,12 @@
         @_navigateToCustomMenuItem =>
           # now two menu items are selected - native one and and our custom menu item, so deselect native one
           @_unselectMenuItems ".#{@_selectedTopMenuItemClass}:not(.#{@_customMenuItemClass})"
-          @_clearSubMenu()
-          @_prepareForLeavingFromCustomMenuItem menuItem
+          defaultSubItem = @_clearSubMenu()
 
-          clickHandler @_createNewMainContainer()
+          containers = @_createNewMainContainer()
+          @_prepareForLeavingFromCustomMenuItem menuItem, defaultSubItem, containers
+
+          clickHandler containers.customContents
 
       _navigateToCustomMenuItem: (callback) ->
         # we cannot set some custom hash - it anyway navigates to a default path
@@ -385,17 +387,17 @@
         if location.hash is targetHash
           callback()
         else
-          @_toggleNavigationToCustomMenuItem on
+          @_toggleNavigationToMenuItem on
           currentContainer = moyskladUtils._getContentsContainer()[0]
           location.hash = targetHash
           #wait for target menu item rendering first
           taistApi.wait.once (-> currentContainer != moyskladUtils._getContentsContainer()[0]), (=>
-            @_toggleNavigationToCustomMenuItem off
+            @_toggleNavigationToMenuItem off
             callback()
           ), 20
 
-      _toggleNavigationToCustomMenuItem: (toggle) ->
-        moyskladUtils._getMainPanel().toggleClass 'addonScheduledTasks-navigatingToCustomItem', toggle
+      _toggleNavigationToMenuItem: (toggle) ->
+        moyskladUtils._getMainPanel().toggleClass 'addonScheduledTasks-forcedNavigationToMenuItem', toggle
 
       _getTargetHashForCustomMenuItem: ->
         if entryPoint is 'user'
@@ -403,21 +405,39 @@
         else
           '#dictionaries'
 
-      _prepareForLeavingFromCustomMenuItem: (menuItem) ->
+      _prepareForLeavingFromCustomMenuItem: (menuItem, defaultSubItem, containers) ->
         currentHash = location.hash
         taistApi.wait.once (-> location.hash != currentHash), =>
           @_menuItemToggleSelected menuItem, off
-          @_restoreSubMenu()
+
+        # defaultSubItem is considered to be active now, so we have to rendering its contents manually when clicking on it
+        defaultSubItem.click manuallyRenderDefaultSubItem = =>
+          defaultSubItem.off 'click', manuallyRenderDefaultSubItem
+
+          # native contents have been rendered already - we have just to show them instead of custom contents
+
+          # remove custom contents
+          containers.nativeParent.empty()
+
+          # return native contents to their place in DOM
+          containers.nativeParent.append containers.nativeContentsStorage.children()
+          containers.nativeContentsStorage.remove()
 
       _getAllMenuItems: ->
         ($ '.' + @_topMenuItemClass).add($ '.' + @_selectedTopMenuItemClass)
 
       _clearSubMenu: ->
-        # hide native subMenu as it will be reused in native menu item
-        @_getSubMenu().hide()
+        subMenu = @_getSubMenu()
+        # we have to clear subMenu but cannot just remove it as it will be reused in native menu item
+        subMenu.hide()
 
-      _restoreSubMenu: ->
-        @_getSubMenu().show()
+        # one of native subMenu items is considered active now - remove its active sign
+        activeSubMenuItem = subMenu.find '.active'
+        activeSubMenuItem.removeClass 'active'
+
+        return activeSubMenuItem
+
+      _restoreSubMenu: -> @_getSubMenu().show()
 
       _renderNewTopMenuItem: (topMenu, itemName) ->
         menuItem = $ """<td class="#{@_topMenuItemClass} #{@_customMenuItemClass}"><span title="#{itemName}" class="lognex-SpanHyperlink" tabindex="0"><a>#{itemName}</a></span></td>"""
@@ -440,21 +460,19 @@
         # native main container should exist and be linked to DOM, or MoySklad breaks
         # when a user revisits this native menu item, the container will be relinked to a new fresh parent element,
         # so now we can just append it to a new invisible div
-        nativeContainer = moyskladUtils._getContentsContainer()
+        nativeContents = moyskladUtils._getContentsContainer()
 
-        oldParent = nativeContainer.parent()
-        grandParent = oldParent.parent()
+        nativeParent = nativeContents.parent()
+        customContents = $ '<div></div>'
+        nativeParent.append customContents
 
-        newParent = $ '<div class="mainCustomContainer"></div>'
-        newParent.hide()
-        newParent.append nativeContainer
-        grandParent.append newParent
+        nativeContentsStorage = $ '<div class="addonScheduledTasks-tempParentForHiddenNativeContent"></div>'
 
-        newContainer = $ '<div></div>'
+        nativeContentsStorage.append nativeContents
 
-        oldParent.append newContainer
-
-        return newContainer
+        grandParent = nativeParent.parent()
+        grandParent.append nativeContentsStorage
+        return {nativeParent, nativeContentsStorage, customContents}
 
       _customMenuItemClass: 'topMenuItemFromAddon'
       _topMenuItemClass: 'topMenuItem'
