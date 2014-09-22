@@ -445,11 +445,8 @@
     }
   };
   moyskladUtils = {
-    _getDashboardMainContainer: function() {
-      return $('.l-fixed-width-page');
-    },
     _getEntityContainer: function() {
-      return $('.lognex-ScreenWrapper');
+      return $('.b-application-panel > tbody > tr:nth-child(3) > td > *');
     },
     topMenu: {
       addMenuItemWithoutSubItems: function(itemName, contentRenderer) {
@@ -547,7 +544,7 @@
       },
       _createNewMainContainer: function() {
         var grandParent, nativeContainer, newContainer, newParent, oldParent;
-        nativeContainer = moyskladUtils._getDashboardMainContainer();
+        nativeContainer = moyskladUtils._getEntityContainer();
         oldParent = nativeContainer.parent();
         grandParent = oldParent.parent();
         newParent = $('<div class="mainCustomContainer"></div>');

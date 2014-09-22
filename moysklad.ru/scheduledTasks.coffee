@@ -339,11 +339,14 @@
       }
 
   moyskladUtils =
-    _getDashboardMainContainer: -> $ '.l-fixed-width-page'
-
-    _getEntityContainer: -> $ '.lognex-ScreenWrapper'
+    _getEntityContainer: ->
+      # everywhere in user part except dashboard it is just '.lognex-ScreenWrapper'
+      # but we will use single selector for everything including admin part
+      # it should always return one element
+      $ '.b-application-panel > tbody > tr:nth-child(3) > td > *'
 
     topMenu:
+
       addMenuItemWithoutSubItems: (itemName, contentRenderer) ->
         @_createTopMenuItem itemName, (mainContainer) ->
           contentRenderer mainContainer
@@ -420,10 +423,10 @@
         menuItem.toggleClass @_topMenuItemClass, !selected
 
       _createNewMainContainer: ->
-        # dashboard container should exist and be linked to DOM, or everything breaks
-        # when a user revisits dashboard, the container will be relinked to a new fresh parent element,
+        # native main container should exist and be linked to DOM, or MoySklad breaks
+        # when a user revisits this native menu item, the container will be relinked to a new fresh parent element,
         # so now we can just append it to a new invisible div
-        nativeContainer = moyskladUtils._getDashboardMainContainer()
+        nativeContainer = moyskladUtils._getEntityContainer()
 
         oldParent = nativeContainer.parent()
         grandParent = oldParent.parent()
