@@ -445,8 +445,11 @@
     }
   };
   moyskladUtils = {
-    _getEntityContainer: function() {
-      return $('.b-application-panel > tbody > tr:nth-child(3) > td > *');
+    _getMainPanel: function() {
+      return $('.b-application-panel');
+    },
+    _getContentsContainer: function() {
+      return this._getMainPanel().find('> tbody > tr:nth-child(3) > td > *');
     },
     topMenu: {
       addMenuItemWithoutSubItems: function(itemName, contentRenderer) {
@@ -467,28 +470,21 @@
         })(this));
       },
       _prepareNativeMenuForAddingCustomMenuItems: function() {
-        var nativeMenuItems;
         if (!this._nativeMenuPrepared) {
           this._nativeMenuPrepared = true;
-          nativeMenuItems = this._getAllMenuItems();
-          return nativeMenuItems.click((function(_this) {
+          return this._getAllMenuItems().click((function(_this) {
             return function() {
-              _this._unselectCustomMenuItems();
+              _this._unselectMenuItems("." + _this._customMenuItemClass);
               return _this._restoreSubMenu();
             };
           })(this));
         }
       },
-      _unselectCustomMenuItems: function() {
-        return this._menuItemToggleSelected($('.' + this._customMenuItemClass), false);
-      },
       _onCustomTopMenuItemClick: function(menuItem, clickHandler) {
         this._menuItemToggleSelected(menuItem, true);
         return this._navigateToHostMenuItem((function(_this) {
           return function() {
-            var selectedNativeMenuItem;
-            selectedNativeMenuItem = ($("." + _this._selectedTopMenuItemClass)).not("." + _this._customMenuItemClass);
-            _this._menuItemToggleSelected(selectedNativeMenuItem, false);
+            _this._unselectMenuItems("." + _this._selectedTopMenuItemClass + ":not(." + _this._customMenuItemClass + ")");
             _this._clearSubMenu();
             _this._processLeavingFromCustomMenuItem(menuItem);
             return clickHandler(_this._createNewMainContainer());
@@ -501,10 +497,10 @@
         if (location.hash === targetHash) {
           return callback();
         } else {
-          currentContainer = moyskladUtils._getEntityContainer()[0];
+          currentContainer = moyskladUtils._getContentsContainer()[0];
           location.hash = targetHash;
           return taistApi.wait.once((function() {
-            return currentContainer !== moyskladUtils._getEntityContainer()[0];
+            return currentContainer !== moyskladUtils._getContentsContainer()[0];
           }), callback, 20);
         }
       },
@@ -546,14 +542,8 @@
       _getSubMenu: function() {
         return $('.subMenu');
       },
-      _unselectMenuItems: function(menuItems) {
-        var menuItem, _i, _len, _results;
-        _results = [];
-        for (_i = 0, _len = menuItems.length; _i < _len; _i++) {
-          menuItem = menuItems[_i];
-          _results.push(this._menuItemToggleSelected($(menuItem), false));
-        }
-        return _results;
+      _unselectMenuItems: function(menuItemsSelector) {
+        return this._menuItemToggleSelected($(menuItemsSelector), false);
       },
       _menuItemToggleSelected: function(menuItem, selected) {
         menuItem.toggleClass(this._selectedTopMenuItemClass, selected);
@@ -561,7 +551,7 @@
       },
       _createNewMainContainer: function() {
         var grandParent, nativeContainer, newContainer, newParent, oldParent;
-        nativeContainer = moyskladUtils._getEntityContainer();
+        nativeContainer = moyskladUtils._getContentsContainer();
         oldParent = nativeContainer.parent();
         grandParent = oldParent.parent();
         newParent = $('<div class="mainCustomContainer"></div>');
@@ -582,9 +572,9 @@
         return taistApi.hash.when(this._idInHashRegexp, (function(_this) {
           return function() {
             return taistApi.wait.once((function() {
-              return moyskladUtils._getEntityContainer().children('table').length > 0;
+              return moyskladUtils._getContentsContainer().children('table').length > 0;
             }), function() {
-              return handler(_this.getId(), moyskladUtils._getEntityContainer());
+              return handler(_this.getId(), moyskladUtils._getContentsContainer());
             });
           };
         })(this));

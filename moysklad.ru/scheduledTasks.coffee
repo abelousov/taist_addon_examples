@@ -339,11 +339,12 @@
       }
 
   moyskladUtils =
-    _getEntityContainer: ->
+    _getMainPanel: -> $ '.b-application-panel'
+    _getContentsContainer: ->
       # everywhere in user part except dashboard it is just '.lognex-ScreenWrapper'
       # but we will use single selector for everything including admin part
       # it should always return one element
-      $ '.b-application-panel > tbody > tr:nth-child(3) > td > *'
+      @_getMainPanel().find '> tbody > tr:nth-child(3) > td > *'
 
     topMenu:
       addMenuItemWithoutSubItems: (itemName, contentRenderer) ->
@@ -363,21 +364,15 @@
           @_nativeMenuPrepared = true
 
           #suppose that there are only native items now
-          nativeMenuItems = @_getAllMenuItems()
-          nativeMenuItems.click =>
-            @_unselectCustomMenuItems()
+          @_getAllMenuItems().click =>
+            @_unselectMenuItems ".#{@_customMenuItemClass}"
             @_restoreSubMenu()
-
-      _unselectCustomMenuItems: ->
-        @_menuItemToggleSelected ($ '.' + @_customMenuItemClass), no
 
       _onCustomTopMenuItemClick: (menuItem, clickHandler) ->
         @_menuItemToggleSelected menuItem, true
-
         @_navigateToHostMenuItem =>
           # now two menu items are selected - native one and and our custom menu item, so deselect native one
-          selectedNativeMenuItem = ($ ".#{@_selectedTopMenuItemClass}").not ".#{@_customMenuItemClass}"
-          @_menuItemToggleSelected selectedNativeMenuItem, off
+          @_unselectMenuItems ".#{@_selectedTopMenuItemClass}:not(.#{@_customMenuItemClass})"
           @_clearSubMenu()
           @_processLeavingFromCustomMenuItem menuItem
 
@@ -390,10 +385,10 @@
         if location.hash is targetHash
           callback()
         else
-          currentContainer = moyskladUtils._getEntityContainer()[0]
+          currentContainer = moyskladUtils._getContentsContainer()[0]
           location.hash = targetHash
           #wait for target menu item rendering first
-          taistApi.wait.once (-> currentContainer != moyskladUtils._getEntityContainer()[0]), callback, 20
+          taistApi.wait.once (-> currentContainer != moyskladUtils._getContentsContainer()[0]), callback, 20
 
       _getTargetHashForCustomMenuItem: ->
         if entryPoint is 'user'
@@ -404,7 +399,7 @@
       _processLeavingFromCustomMenuItem: (menuItem) ->
         currentHash = location.hash
         taistApi.wait.once (-> location.hash != currentHash), =>
-          @_menuItemToggleSelected menuItem, false
+          @_menuItemToggleSelected menuItem, off
           @_restoreSubMenu()
 
       _getAllMenuItems: ->
@@ -427,8 +422,8 @@
       _getSubMenu: ->
         $ '.subMenu'
 
-      _unselectMenuItems: (menuItems) ->
-        (@_menuItemToggleSelected ($ menuItem), no) for menuItem in menuItems
+      _unselectMenuItems: (menuItemsSelector) ->
+        @_menuItemToggleSelected ($ menuItemsSelector), off
 
       _menuItemToggleSelected: (menuItem, selected) ->
         menuItem.toggleClass @_selectedTopMenuItemClass, selected
@@ -438,7 +433,7 @@
         # native main container should exist and be linked to DOM, or MoySklad breaks
         # when a user revisits this native menu item, the container will be relinked to a new fresh parent element,
         # so now we can just append it to a new invisible div
-        nativeContainer = moyskladUtils._getEntityContainer()
+        nativeContainer = moyskladUtils._getContentsContainer()
 
         oldParent = nativeContainer.parent()
         grandParent = oldParent.parent()
@@ -464,8 +459,8 @@
         # all main DOM elements are preserverd and used many times, so wait.elementRender will not work - look for hash change here
         taistApi.hash.when @_idInHashRegexp, =>
           # will wait for element to render - first time it takes some time
-          taistApi.wait.once (-> moyskladUtils._getEntityContainer().children('table').length > 0), =>
-            handler @getId(), moyskladUtils._getEntityContainer()
+          taistApi.wait.once (-> moyskladUtils._getContentsContainer().children('table').length > 0), =>
+            handler @getId(), moyskladUtils._getContentsContainer()
 
       getId: ->
         idSubstring = (@_idInHashRegexp.exec location.hash)[0]
