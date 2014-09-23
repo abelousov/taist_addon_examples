@@ -37,10 +37,9 @@
     moyskladUtils.topMenu.addMenuItemWithoutSubItems 'Календарь', (mainContainer) ->
       (new CalendarSettings()).render mainContainer
 
-
   waitDrawDocumentCalendar = ->
     moyskladUtils.currentEntity.onDisplay (entityId, mainContainer) ->
-      (new InDocCalendar entityId, mainContainer).render()
+      (new InDocCalendar entityId, mainContainer).renderCalendarButton()
 
   renderGeneralCalendar = (mainContainer) ->
     calendarElement = $ "<div class=\"addonScheduledTasks-mainContainer\"></div>"
@@ -83,7 +82,7 @@
       else
         @_calendarsList.empty()
       for calendar in calendarStorage.getOrderedCalendars()
-        @_renderCalendar calendar
+        @_render calendar
 
     _renderCalendar: (calendar) ->
       calendarContainer = $ """<div class="addonScheduledTasks-settingsCalendarRecord"></div>"""
@@ -107,7 +106,7 @@
 
 
     _addCalendar: ->
-      @_renderCalendar calendarStorage.create()
+      @_render calendarStorage.create()
 
     _delete: (calendar) ->
       calendarStorage.delete calendar
@@ -119,53 +118,70 @@
 
   class InDocCalendar
     _entityId: null
-    _calendarElement: null
+    _calendarContainer: null
     _taskListElement: null
     _calendarIsDisplayed: null
     _calendar: null
 
     constructor: (@_entityId) ->
 
-    render: ->
+    renderCalendarButton: ->
       moyskladUtils.currentEntity.addActionButton {
-        caption: "Календарь",
+        caption: "Календарь"
+        buttonId: "addonScheduledTasks-showCalendarButton"
         click: =>
           @_toggleCalendarDisplay()
       }
-#      @_mainContentsTable = @_mainContainer.children()
-#      taskListContainer = $ '<div class="addonScheduledTasks-inDocTasks"></div>'
-#      taskListContainer.append @_createCalendarToggleButton()
-#
-#      taskListContainer.append $ '<h3 class="addonScheduledTasks-taskListHeader">Задачи: </h3>'
-#
-#      @_taskListElement = $ '<div class="addonScheduledTasks-inDocTaskList"></div>'
-#      taskListContainer.append @_taskListElement
-#
-#      @_redrawTaskList()
-#      @_mainContainer.append taskListContainer
 
     _toggleCalendarDisplay: ->
       if not @_calendar?
-        @_renderCalendar()
+        @_render()
 
       else
         @_calendarIsDisplayed = not @_calendarIsDisplayed
-        @_calendarElement.toggle @_calendarIsDisplayed
+        @_calendarContainer.toggle @_calendarIsDisplayed
+
+      if @_calendarIsDisplayed
+        @_scrollToCalendar()
+
+    _scrollToCalendar: ->
+      ($ 'body').scrollTop @_calendarContainer.offset().top - 70
 
     _forceDisplayCalendar: ->
       if not @_calendarIsDisplayed
         @_toggleCalendarDisplay()
 
-    _renderCalendar: ->
-      @_calendarElement = $ '<div class="addonScheduledTasks-inDocCalendar"></div>'
-      ($ '.lognex-ScreenWrapper .gwt-TabPanel').before @_calendarElement
+    _render: ->
+      @_calendarContainer = $ '<div class="addonScheduledTasks-inDocCalendarContainer"></div>'
+      ($ '.lognex-ScreenWrapper .gwt-TabPanel').before @_calendarContainer
+      @_calendarContainer.width @_calendarContainer.parent().width()
 
-      @_calendarElement.width @_calendarElement.parent().width()
+      calendarElement = $ '<div class="addonScheduledTasks-inDocCalendar"></div>'
+      @_calendarContainer.append calendarElement
 
-      @_calendar = Calendar.createEditable @_calendarElement, @_calendarHandlers
+      @_calendar = Calendar.createEditable calendarElement, @_getCalendarHandlers()
       @_calendarIsDisplayed = yes
 
-    _calendarHandlers:
+      taskListContainer = $ '<div class="addonScheduledTasks-inDocTasks"></div>'
+
+      closeCalendarButton = moyskladUtils.uiPrimitives.button {
+        type: 'link'
+        caption: "Закрыть календарь"
+        classes: "addonScheduledTasks-inDocCalendarCloseLink"
+        click: =>
+          @_toggleCalendarDisplay()
+      }
+      taskListContainer.append closeCalendarButton
+
+      taskListContainer.append $ '<h3 class="addonScheduledTasks-taskListHeader">Задачи: </h3>'
+
+      @_taskListElement = $ '<div class="addonScheduledTasks-inDocTaskList"></div>'
+      taskListContainer.append @_taskListElement
+
+      @_redrawTaskList()
+      @_calendarContainer.append taskListContainer
+
+    _getCalendarHandlers: ->
       create: (start, end) =>
         return @_editUnconditionally {start, end, entityId: @_entityId}
 
@@ -183,11 +199,11 @@
         if event.editable
           return @_editUnconditionally event
 
-      _editUnconditionally: (event) ->
-        title = window.prompt 'Введите название задачи:'
-        if title?
-          event.title = title
-          return event
+    _editUnconditionally: (event) ->
+      title = window.prompt 'Введите название задачи:'
+      if title?
+        event.title = title
+        return event
 
     _redrawTaskList: ->
       @_taskListElement.empty()
@@ -582,10 +598,19 @@
         location.hash.substring 1, (location.hash.indexOf '/')
 
       addActionButton: (options) ->
-        button = @_createActionButton options
-        button.click options.click
         buttonsPanel = $ '.b-air-button-panel > tbody > tr'
-        buttonsPanel.append button
+        buttonsPanelDom = buttonsPanel[0]
+        addedButtons = (buttonsPanelDom.addedButtons ?= {})
+        if not options.buttonId
+          taistApi.error {
+            halt: true
+            message: "unique options.buttonId is required when using addActionButton to avoid duplicating buttons"
+          }
+
+        if not addedButtons[options.buttonId]?
+          addedButtons[options.buttonId] = button = @_createActionButton options
+          button.click options.click
+          buttonsPanel.append button
 
       _createActionButton: (options) -> $ """
         <td align="left" style="vertical-align: top;">
@@ -634,6 +659,7 @@
             delete:
               classes: "m-link-button-red"
               iconPosition: "-706px -15px"
+            default: {}
 
       button: (options) ->
         buttonDecorator = @_getButtonDecoratorsByTypes()[options.type ? "button"]

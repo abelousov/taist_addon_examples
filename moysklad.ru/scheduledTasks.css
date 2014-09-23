@@ -23,12 +23,23 @@
   display: none;
 }
 
-.addonScheduledTasks-inDocCalendar {
+.addonScheduledTasks-inDocCalendarContainer {
   margin-bottom: 40px;
 }
 
+.addonScheduledTasks-inDocCalendar {
+  width: 75%;
+  display: inline-block;
+}
+
+.addonScheduledTasks-inDocCalendarCloseLink {
+  margin-bottom: 20px;
+  text-align: right;
+}
+
 .addonScheduledTasks-inDocTasks {
-  margin-left: 20px;
+  padding-left: 20px;
+  display: inline-block;
 }
 
 .addonScheduledTasks-taskContents {

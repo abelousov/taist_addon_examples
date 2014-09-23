@@ -43,7 +43,7 @@
   };
   waitDrawDocumentCalendar = function() {
     return moyskladUtils.currentEntity.onDisplay(function(entityId, mainContainer) {
-      return (new InDocCalendar(entityId, mainContainer)).render();
+      return (new InDocCalendar(entityId, mainContainer)).renderCalendarButton();
     });
   };
   renderGeneralCalendar = function(mainContainer) {
@@ -98,7 +98,7 @@
       _results = [];
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
         calendar = _ref[_i];
-        _results.push(this._renderCalendar(calendar));
+        _results.push(this._render(calendar));
       }
       return _results;
     };
@@ -127,7 +127,7 @@
     };
 
     CalendarSettings.prototype._addCalendar = function() {
-      return this._renderCalendar(calendarStorage.create());
+      return this._render(calendarStorage.create());
     };
 
     CalendarSettings.prototype._delete = function(calendar) {
@@ -149,7 +149,7 @@
   InDocCalendar = (function() {
     InDocCalendar.prototype._entityId = null;
 
-    InDocCalendar.prototype._calendarElement = null;
+    InDocCalendar.prototype._calendarContainer = null;
 
     InDocCalendar.prototype._taskListElement = null;
 
@@ -161,9 +161,10 @@
       this._entityId = _entityId;
     }
 
-    InDocCalendar.prototype.render = function() {
+    InDocCalendar.prototype.renderCalendarButton = function() {
       return moyskladUtils.currentEntity.addActionButton({
         caption: "Календарь",
+        buttonId: "addonScheduledTasks-showCalendarButton",
         click: (function(_this) {
           return function() {
             return _this._toggleCalendarDisplay();
@@ -174,11 +175,18 @@
 
     InDocCalendar.prototype._toggleCalendarDisplay = function() {
       if (this._calendar == null) {
-        return this._renderCalendar();
+        this._render();
       } else {
         this._calendarIsDisplayed = !this._calendarIsDisplayed;
-        return this._calendarElement.toggle(this._calendarIsDisplayed);
+        this._calendarContainer.toggle(this._calendarIsDisplayed);
       }
+      if (this._calendarIsDisplayed) {
+        return this._scrollToCalendar();
+      }
+    };
+
+    InDocCalendar.prototype._scrollToCalendar = function() {
+      return ($('body')).scrollTop(this._calendarContainer.offset().top - 70);
     };
 
     InDocCalendar.prototype._forceDisplayCalendar = function() {
@@ -187,45 +195,74 @@
       }
     };
 
-    InDocCalendar.prototype._renderCalendar = function() {
-      this._calendarElement = $('<div class="addonScheduledTasks-inDocCalendar"></div>');
-      ($('.lognex-ScreenWrapper .gwt-TabPanel')).before(this._calendarElement);
-      this._calendarElement.width(this._calendarElement.parent().width());
-      this._calendar = Calendar.createEditable(this._calendarElement, this._calendarHandlers);
-      return this._calendarIsDisplayed = true;
+    InDocCalendar.prototype._render = function() {
+      var calendarElement, closeCalendarButton, taskListContainer;
+      this._calendarContainer = $('<div class="addonScheduledTasks-inDocCalendarContainer"></div>');
+      ($('.lognex-ScreenWrapper .gwt-TabPanel')).before(this._calendarContainer);
+      this._calendarContainer.width(this._calendarContainer.parent().width());
+      calendarElement = $('<div class="addonScheduledTasks-inDocCalendar"></div>');
+      this._calendarContainer.append(calendarElement);
+      this._calendar = Calendar.createEditable(calendarElement, this._getCalendarHandlers());
+      this._calendarIsDisplayed = true;
+      taskListContainer = $('<div class="addonScheduledTasks-inDocTasks"></div>');
+      closeCalendarButton = moyskladUtils.uiPrimitives.button({
+        type: 'link',
+        caption: "Закрыть календарь",
+        classes: "addonScheduledTasks-inDocCalendarCloseLink",
+        click: (function(_this) {
+          return function() {
+            return _this._toggleCalendarDisplay();
+          };
+        })(this)
+      });
+      taskListContainer.append(closeCalendarButton);
+      taskListContainer.append($('<h3 class="addonScheduledTasks-taskListHeader">Задачи: </h3>'));
+      this._taskListElement = $('<div class="addonScheduledTasks-inDocTaskList"></div>');
+      taskListContainer.append(this._taskListElement);
+      this._redrawTaskList();
+      return this._calendarContainer.append(taskListContainer);
     };
 
-    InDocCalendar.prototype._calendarHandlers = {
-      create: function(start, end) {
-        return InDocCalendar._editUnconditionally({
-          start: start,
-          end: end,
-          entityId: InDocCalendar._entityId
-        });
-      },
-      enhance: function(event) {
-        if (event.entityId === InDocCalendar._entityId) {
-          event.className = "addonScheduledTasks-eventForCurrentEntity";
-          return event.editable = true;
-        } else {
-          return event.editable = false;
+    InDocCalendar.prototype._getCalendarHandlers = function() {
+      return {
+        create: (function(_this) {
+          return function(start, end) {
+            return _this._editUnconditionally({
+              start: start,
+              end: end,
+              entityId: _this._entityId
+            });
+          };
+        })(this),
+        enhance: (function(_this) {
+          return function(event) {
+            if (event.entityId === _this._entityId) {
+              event.className = "addonScheduledTasks-eventForCurrentEntity";
+              return event.editable = true;
+            } else {
+              return event.editable = false;
+            }
+          };
+        })(this),
+        onUpdate: (function(_this) {
+          return function() {
+            return _this._redrawTaskList();
+          };
+        })(this),
+        edit: function(event) {
+          if (event.editable) {
+            return this._editUnconditionally(event);
+          }
         }
-      },
-      onUpdate: function() {
-        return InDocCalendar._redrawTaskList();
-      },
-      edit: function(event) {
-        if (event.editable) {
-          return this._editUnconditionally(event);
-        }
-      },
-      _editUnconditionally: function(event) {
-        var title;
-        title = window.prompt('Введите название задачи:');
-        if (title != null) {
-          event.title = title;
-          return event;
-        }
+      };
+    };
+
+    InDocCalendar.prototype._editUnconditionally = function(event) {
+      var title;
+      title = window.prompt('Введите название задачи:');
+      if (title != null) {
+        event.title = title;
+        return event;
       }
     };
 
@@ -710,11 +747,21 @@
         return location.hash.substring(1, location.hash.indexOf('/'));
       },
       addActionButton: function(options) {
-        var button, buttonsPanel;
-        button = this._createActionButton(options);
-        button.click(options.click);
+        var addedButtons, button, buttonsPanel, buttonsPanelDom;
         buttonsPanel = $('.b-air-button-panel > tbody > tr');
-        return buttonsPanel.append(button);
+        buttonsPanelDom = buttonsPanel[0];
+        addedButtons = (buttonsPanelDom.addedButtons != null ? buttonsPanelDom.addedButtons : buttonsPanelDom.addedButtons = {});
+        if (!options.buttonId) {
+          taistApi.error({
+            halt: true,
+            message: "unique options.buttonId is required when using addActionButton to avoid duplicating buttons"
+          });
+        }
+        if (addedButtons[options.buttonId] == null) {
+          addedButtons[options.buttonId] = button = this._createActionButton(options);
+          button.click(options.click);
+          return buttonsPanel.append(button);
+        }
       },
       _createActionButton: function(options) {
         return $("<td align=\"left\" style=\"vertical-align: top;\">\n  <div role=\"button\" class=\"btn btn-enabled btn-gray\" tabindex=\"0\" style=\"\">\n    <table>\n      <colgroup>\n        <col>\n      </colgroup>\n      <tbody>\n      <tr>\n        <td></td>\n        <td><span class=\"text\">" + options.caption + "</span></td>\n      </tr>\n      </tbody>\n    </table>\n  </div>\n</td>");
@@ -760,7 +807,8 @@
               "delete": {
                 classes: "m-link-button-red",
                 iconPosition: "-706px -15px"
-              }
+              },
+              "default": {}
             }
           }
         };
