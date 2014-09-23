@@ -65,7 +65,7 @@
   z-index: 999;
 }
 
-.addonScheduledTasks-generalCalendar {
+.addonScheduledTasks-mainContainer {
   margin-left: 50px;
   margin-right: 50px;
   margin-bottom: 50px;
@@ -90,4 +90,26 @@
 .addonScheduledTasks-eventForCurrentEntity {
   background-color: rgb(83, 173, 78);
   border-color: rgb(83, 173, 78);
+}
+
+.addonScheduledTasks-settingsCaption {
+  vertical-align: super;
+}
+
+.addonScheduledTasks-settingsCalendarsList {
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+.addonScheduledTasks-settingsAddCalendarButton {
+  vertical-align: bottom;
+}
+
+.addonScheduledTasks-settingsCalendarRecord {
+  margin-bottom: 10px;
+}
+
+.addonScheduledTasks-settingsCalendarDeleteButton {
+  margin-left: 10px;
+  display: inline-block;
 }

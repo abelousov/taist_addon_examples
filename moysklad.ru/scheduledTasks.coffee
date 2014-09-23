@@ -7,34 +7,115 @@
   start = (_taistApi, _entryPoint) ->
     taistApi = _taistApi
     entryPoint = _entryPoint
-    taistApi.haltOnError = true
 
+    init ->
+      switch entryPoint
+        when 'user'
+          loadFullCalendar()
+          drawGeneralCalendarTab()
+          waitDrawDocumentCalendar()
+
+        when 'admin'
+          drawSettingsTab()
+
+  init = (callback) ->
+    taistApi.haltOnError = true
     taistApi.wait.once (->
       getCompanyKey().length > 0), ->
         taistApi.companyData.setCompanyKey getCompanyKey()
-        taskStorage.init ->
-          loadFullCalendar()
+        calendarStorage.init ->
+          taskStorage.init callback
 
-          drawGeneralCalendarTab()
-          waitDrawDocumentCalendar()
 
   getCompanyKey = ->
     $('.companyName>span').text()
 
   drawGeneralCalendarTab = ->
-    moyskladUtils.topMenu.addMenuItemWithoutSubItems 'Календарь', createGeneralCalendarDom
+    moyskladUtils.topMenu.addMenuItemWithoutSubItems 'Календарь', renderGeneralCalendar
+
+  drawSettingsTab = ->
+    moyskladUtils.topMenu.addMenuItemWithoutSubItems 'Календарь', (mainContainer) ->
+      (new CalendarSettings()).render mainContainer
+
 
   waitDrawDocumentCalendar = ->
     moyskladUtils.currentEntity.onDisplay (entityId, mainContainer) ->
       (new InDocCalendar entityId, mainContainer).render()
 
-  createGeneralCalendarDom = (mainContainer) ->
-    calendarElement = $ "<div class=\"addonScheduledTasks-generalCalendar\"></div>"
+  renderGeneralCalendar = (mainContainer) ->
+    calendarElement = $ "<div class=\"addonScheduledTasks-mainContainer\"></div>"
 
     #calendar element should be appended to the dom before rendering the calendar
     mainContainer.append calendarElement
 
     Calendar.createReadOnly calendarElement
+
+  class CalendarSettings
+    _calendarsList: null
+    render: (mainContainer) ->
+      settingsContainer = $ """<div class="addonScheduledTasks-mainContainer"></div>"""
+
+      header = $ """<div><span class="b-manual-name addonScheduledTasks-settingsCaption">Календари</span></div>"""
+      addButton = moyskladUtils.uiPrimitives.button {
+        classes: "addonScheduledTasks-settingsAddCalendarButton"
+        caption: "Добавить"
+        action: "add"
+        click: => @_addCalendar()
+      }
+      header.append addButton
+
+      @_renderCalendars()
+
+      saveButton = moyskladUtils.uiPrimitives.button {
+        classes: "addonScheduledTasks-settingsSaveButton"
+        caption: "Сохранить"
+        action: "save"
+        click: => @_save()
+      }
+
+      settingsContainer.append header, @_calendarsList, saveButton
+
+      mainContainer.append settingsContainer
+
+    _renderCalendars: ->
+      if not @_calendarsList?
+        @_calendarsList = $ """<div class="addonScheduledTasks-settingsCalendarsList"></div>"""
+      else
+        @_calendarsList.empty()
+      for calendar in calendarStorage.getOrderedCalendars()
+        @_renderCalendar calendar
+
+    _renderCalendar: (calendar) ->
+      calendarContainer = $ """<div class="addonScheduledTasks-settingsCalendarRecord"></div>"""
+      calendarNameInput = $ """<input type='text' placeholder='Название календаря'/>"""
+      calendarNameInput.val calendar.name
+
+      calendarNameInput.on 'input', ->
+        calendar.name = calendarNameInput.val()
+
+      calendarDeleteLink = moyskladUtils.uiPrimitives.button {
+        type: 'link'
+        action: 'delete'
+        caption: 'Удалить'
+        classes: "addonScheduledTasks-settingsCalendarDeleteButton"
+        click: => @_delete calendar
+      }
+
+      calendarContainer.append calendarNameInput, calendarDeleteLink
+
+      @_calendarsList.append calendarContainer
+
+
+    _addCalendar: ->
+      @_renderCalendar calendarStorage.create()
+
+    _delete: (calendar) ->
+      calendarStorage.delete calendar
+      @_renderCalendars()
+
+    _save: ->
+      calendarStorage.save =>
+        @_renderCalendars()
 
   class InDocCalendar
     _entityId: null
@@ -94,34 +175,34 @@
       mainContentsWrapper.append @_mainContentsTable
       @_mainContainer.prepend mainContentsWrapper
 
-      calendarHandlers =
-        create: (start, end) =>
-          return calendarHandlers._editUnconditionally {start, end, entityId: @_entityId}
-
-        enhance: (event) =>
-          if event.entityId is @_entityId
-            event.className = "addonScheduledTasks-eventForCurrentEntity"
-            event.editable = true
-          else
-            event.editable = false
-
-        onUpdate: =>
-          @_redrawTaskList()
-
-        edit: (event) ->
-          if event.editable
-            return calendarHandlers._editUnconditionally event
-
-        _editUnconditionally: (event) ->
-          title = window.prompt 'Введите название задачи:'
-          if title?
-            event.title = title
-            return event
-
-      @_calendar = Calendar.createEditable @_calendarElement, calendarHandlers
+      @_calendar = Calendar.createEditable @_calendarElement, @_calendarHandlers
 
       @_calendarIsDisplayed = no
       @_calendarElement.hide()
+
+    _calendarHandlers:
+      create: (start, end) =>
+        return @_editUnconditionally {start, end, entityId: @_entityId}
+
+      enhance: (event) =>
+        if event.entityId is @_entityId
+          event.className = "addonScheduledTasks-eventForCurrentEntity"
+          event.editable = true
+        else
+          event.editable = false
+
+      onUpdate: =>
+        @_redrawTaskList()
+
+      edit: (event) ->
+        if event.editable
+          return @_editUnconditionally event
+
+      _editUnconditionally: (event) ->
+        title = window.prompt 'Введите название задачи:'
+        if title?
+          event.title = title
+          return event
 
     _redrawTaskList: ->
       @_taskListElement.empty()
@@ -243,27 +324,48 @@
 
         callback eventsList
 
-  taskStorage =
-    _taskDataKey: 'entityTaskData'
+  calendarStorage =
     _calendarsKey: 'calendars'
-    _tasksData: null
-    _calendars: null
-    init: (callback) ->
-      @_loadCalendars =>
-        taistApi.companyData.get @_taskDataKey, (taskData) =>
-          @_tasksData = taskData ? {}
-          callback()
 
-    _loadCalendars: (callback) ->
+    init: (callback) ->
       taistApi.companyData.get @_calendarsKey, (calendars) =>
         @_calendars = calendars
         if @_calendars?
           callback()
         else
-          @_calendars = ["Общий"]
-          @_storeCalendars callback
+          @_calendars = []
+          defaultCalendar = @create()
+          defaultCalendar.name = "Общий"
+          @save callback
 
-    _storeCalendars: (callback) -> taistApi.companyData.set @_calendarsKey, @_calendars, callback
+    getOrderedCalendars: ->
+     @_calendars.slice().sort (cal1, cal2) ->
+       cal1.name.localeCompare cal2.name
+
+
+    save: (callback) ->
+      taistApi.companyData.set @_calendarsKey, @_calendars, callback
+
+    create: ->
+      newCalendar = {
+        id: @_generateId()
+      }
+      @_calendars.push newCalendar
+      return newCalendar
+
+    delete: (calendar) ->
+      @_calendars.splice (@_calendars.indexOf calendar), 1
+
+    _generateId: -> Math.random()
+
+  taskStorage =
+    _taskDataKey: 'entityTaskData'
+    _tasksData: null
+    _calendars: null
+    init: (callback) ->
+      taistApi.companyData.get @_taskDataKey, (taskData) =>
+        @_tasksData = taskData ? {}
+        callback()
 
     create: (eventData, callback) ->
       newTaskData =
@@ -330,12 +432,12 @@
         )
 
     _constructEvent: (taskData, entityId) ->
-      {
-      title: taskData.title
-      start: moment taskData.start
-      end: moment taskData.end
-      entityId
-      taskData
+      return {
+        title: taskData.title
+        start: moment taskData.start
+        end: moment taskData.end
+        entityId
+        taskData
       }
 
   moyskladUtils =
@@ -484,7 +586,7 @@
         # all main DOM elements are preserverd and used many times, so wait.elementRender will not work - look for hash change here
         taistApi.hash.when @_idInHashRegexp, =>
           # will wait for element to render - first time it takes some time
-          taistApi.wait.once (-> moyskladUtils._getContentsContainer().children('table').length > 0), =>
+          taistApi.wait.once (-> moyskladUtils._getContentsContainer().find('> .lognex-ScreenWrapper > table').length > 0), =>
             handler @getId(), moyskladUtils._getContentsContainer()
 
       getId: ->
@@ -496,15 +598,75 @@
         #document type is always in the hash beginning - between '#' and '/'
         location.hash.substring 1, (location.hash.indexOf '/')
 
+      addActionButton: (caption, click) ->
+        button = @_createActionButton caption
+        button.click click
+        buttonsPanel = $ '.b-air-button-panel'
+        buttonsPanel.find('tr').append button
+
+      _createActionButton: (caption) -> $ """
+        <td align="left" style="vertical-align: top;">
+          <div role="button" class="btn btn-enabled btn-gray" tabindex="0" style="">
+            <table>
+              <colgroup>
+                <col>
+              </colgroup>
+              <tbody>
+              <tr>
+                <td></td>
+                <td><span class="text">#{caption}</span></td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+        </td>
+        """
 
     uiPrimitives:
-      button: (options) ->
-        button = $ "<div role=\"button\" class=\"b-popup-button b-popup-button-enabled b-popup-button-gray #{options.classes}\" tabindex=\"0\">
-                                                                  <table><colgroup><col></colgroup><tbody><tr><td></td><td><span class=\"text\">#{options.caption}</span></td></tr></tbody></table>
-                                                                </div>"
+      _defaultButtonColorClass: "b-popup-button-gray"
+      _getButtonIcon: -> $ """<img src="https://online.moysklad.ru/app/admin/clear.cache.gif" style="width:14px;background:url(https://online.moysklad.ru/app/admin/5DED07A8C93EDC2459C97B778717F84B.cache.png) no-repeat ;" border="0">"""
+      _getButtonDecoratorsByTypes: ->
+        button:
+          template: (options) -> """<div role="button" class="b-popup-button b-popup-button-enabled #{options.classes}" >
+                  <table><colgroup><col></colgroup><tbody><tr><td></td><td><span class="text">#{options.caption}</span></td></tr></tbody></table>
+                                                                        </div>"""
+          addIcon: (button, icon) ->
+            icon.addClass "icon"
+            icon.height 14
+            button.find('td:first-child').append icon
+          stylesByActions:
+            add:
+              iconPosition: "-734px -15px"
+            save:
+              classes: "b-popup-button-green"
+            default:
+              classes: moyskladUtils.uiPrimitives._defaultButtonColorClass
 
-        if options.click?
-          button.click options.click
+        link:
+          template: (options) -> """<div class="b-link-button #{options.classes}"><span class="image-link-button-text" >#{options.caption}</span></div>"""
+          addIcon: (link, icon) ->
+            icon.height 13
+            link.prepend icon
+          stylesByActions:
+            delete:
+              classes: "m-link-button-red"
+              iconPosition: "-706px -15px"
+
+      button: (options) ->
+        buttonDecorator = @_getButtonDecoratorsByTypes()[options.type ? "button"]
+        button = $ (buttonDecorator.template options)
+        styles = buttonDecorator.stylesByActions[options.action]
+        if styles?
+          if styles.iconPosition?
+            icon = @_getButtonIcon()
+            buttonDecorator.addIcon button, icon
+            icon.css "background-position", styles.iconPosition
+
+        button.addClass (styles ? buttonDecorator.stylesByActions.default).classes
+
+        button.click options.click
+
+        return button
 
   loadFullCalendar = ->
     #adding FullCalendar and Moment required by it
