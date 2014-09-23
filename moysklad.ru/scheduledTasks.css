@@ -1,8 +1,3 @@
-.addonScheduledTasks-inDocTopLevelElements {
-  display: inline-block;
-  vertical-align: top;
-}
-
 .addonScheduledTasks-calendarToggleButton {
   vertical-align: middle;
 }
@@ -26,11 +21,6 @@
 
 .addonScheduledTasks-tempParentForHiddenNativeContent {
   display: none;
-}
-
-.addonScheduledTasks-inDocMainContainer {
-  /*preserve task list position to the right of main content*/
-  white-space: nowrap;
 }
 
 .addonScheduledTasks-inDocCalendar {

@@ -149,41 +149,21 @@
   InDocCalendar = (function() {
     InDocCalendar.prototype._entityId = null;
 
-    InDocCalendar.prototype._mainContainer = null;
-
     InDocCalendar.prototype._calendarElement = null;
 
     InDocCalendar.prototype._taskListElement = null;
 
-    InDocCalendar.prototype._calendarIsDisplayed = false;
-
-    InDocCalendar.prototype._mainContentsTable = null;
+    InDocCalendar.prototype._calendarIsDisplayed = null;
 
     InDocCalendar.prototype._calendar = null;
 
-    function InDocCalendar(_entityId, _mainContainer) {
+    function InDocCalendar(_entityId) {
       this._entityId = _entityId;
-      this._mainContainer = _mainContainer;
     }
 
     InDocCalendar.prototype.render = function() {
-      var taskListContainer;
-      this._mainContainer.addClass("addonScheduledTasks-inDocMainContainer");
-      this._mainContentsTable = this._mainContainer.children();
-      this._mainContentsTable.addClass('addonScheduledTasks-inDocTopLevelElements');
-      taskListContainer = $('<div class="addonScheduledTasks-inDocTopLevelElements addonScheduledTasks-inDocTasks"></div>');
-      taskListContainer.append(this._createCalendarToggleButton());
-      taskListContainer.append($('<h3 class="addonScheduledTasks-taskListHeader">Задачи: </h3>'));
-      this._taskListElement = $('<div class="addonScheduledTasks-inDocTaskList"></div>');
-      taskListContainer.append(this._taskListElement);
-      this._redrawTaskList();
-      return this._mainContainer.append(taskListContainer);
-    };
-
-    InDocCalendar.prototype._createCalendarToggleButton = function() {
-      return moyskladUtils.uiPrimitives.button({
-        caption: 'Календарь',
-        classes: 'addonScheduledTasks-calendarToggleButton',
+      return moyskladUtils.currentEntity.addActionButton({
+        caption: "Календарь",
         click: (function(_this) {
           return function() {
             return _this._toggleCalendarDisplay();
@@ -194,12 +174,10 @@
 
     InDocCalendar.prototype._toggleCalendarDisplay = function() {
       if (this._calendar == null) {
-        this._renderCalendar();
-      }
-      this._calendarIsDisplayed = !this._calendarIsDisplayed;
-      this._calendarElement.toggle();
-      if (this._calendarIsDisplayed) {
-        return this._calendar.scrollTo();
+        return this._renderCalendar();
+      } else {
+        this._calendarIsDisplayed = !this._calendarIsDisplayed;
+        return this._calendarElement.toggle(this._calendarIsDisplayed);
       }
     };
 
@@ -210,16 +188,11 @@
     };
 
     InDocCalendar.prototype._renderCalendar = function() {
-      var mainContentsWrapper;
       this._calendarElement = $('<div class="addonScheduledTasks-inDocCalendar"></div>');
-      this._calendarElement.width(this._mainContentsTable.width());
-      mainContentsWrapper = $('<div class="addonScheduledTasks-inDocTopLevelElements addonScheduledTasks-mainContentsWrapper"></div>');
-      mainContentsWrapper.append(this._calendarElement);
-      mainContentsWrapper.append(this._mainContentsTable);
-      this._mainContainer.prepend(mainContentsWrapper);
+      ($('.lognex-ScreenWrapper .gwt-TabPanel')).before(this._calendarElement);
+      this._calendarElement.width(this._calendarElement.parent().width());
       this._calendar = Calendar.createEditable(this._calendarElement, this._calendarHandlers);
-      this._calendarIsDisplayed = false;
-      return this._calendarElement.hide();
+      return this._calendarIsDisplayed = true;
     };
 
     InDocCalendar.prototype._calendarHandlers = {
@@ -393,10 +366,6 @@
 
     Calendar.prototype["do"] = function() {
       return this._domElement.fullCalendar.apply(this._domElement, arguments);
-    };
-
-    Calendar.prototype.scrollTo = function() {
-      return ($('body')).scrollTop(this._domElement.offset().top - this._screenBorderMargin);
     };
 
     Calendar.prototype.adjustToScreenHeight = function() {
@@ -740,15 +709,15 @@
       getType: function() {
         return location.hash.substring(1, location.hash.indexOf('/'));
       },
-      addActionButton: function(caption, click) {
+      addActionButton: function(options) {
         var button, buttonsPanel;
-        button = this._createActionButton(caption);
-        button.click(click);
-        buttonsPanel = $('.b-air-button-panel');
-        return buttonsPanel.find('tr').append(button);
+        button = this._createActionButton(options);
+        button.click(options.click);
+        buttonsPanel = $('.b-air-button-panel > tbody > tr');
+        return buttonsPanel.append(button);
       },
-      _createActionButton: function(caption) {
-        return $("<td align=\"left\" style=\"vertical-align: top;\">\n  <div role=\"button\" class=\"btn btn-enabled btn-gray\" tabindex=\"0\" style=\"\">\n    <table>\n      <colgroup>\n        <col>\n      </colgroup>\n      <tbody>\n      <tr>\n        <td></td>\n        <td><span class=\"text\">" + caption + "</span></td>\n      </tr>\n      </tbody>\n    </table>\n  </div>\n</td>");
+      _createActionButton: function(options) {
+        return $("<td align=\"left\" style=\"vertical-align: top;\">\n  <div role=\"button\" class=\"btn btn-enabled btn-gray\" tabindex=\"0\" style=\"\">\n    <table>\n      <colgroup>\n        <col>\n      </colgroup>\n      <tbody>\n      <tr>\n        <td></td>\n        <td><span class=\"text\">" + options.caption + "</span></td>\n      </tr>\n      </tbody>\n    </table>\n  </div>\n</td>");
       }
     },
     uiPrimitives: {

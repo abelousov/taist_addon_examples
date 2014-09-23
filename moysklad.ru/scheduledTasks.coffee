@@ -119,45 +119,38 @@
 
   class InDocCalendar
     _entityId: null
-    _mainContainer: null
     _calendarElement: null
     _taskListElement: null
-    _calendarIsDisplayed: no
-    _mainContentsTable: null
+    _calendarIsDisplayed: null
     _calendar: null
-    constructor: (@_entityId, @_mainContainer) ->
+
+    constructor: (@_entityId) ->
 
     render: ->
-      @_mainContainer.addClass "addonScheduledTasks-inDocMainContainer"
-      @_mainContentsTable = @_mainContainer.children()
-      @_mainContentsTable.addClass 'addonScheduledTasks-inDocTopLevelElements'
-      taskListContainer = $ '<div class="addonScheduledTasks-inDocTopLevelElements addonScheduledTasks-inDocTasks"></div>'
-      taskListContainer.append @_createCalendarToggleButton()
-
-      taskListContainer.append $ '<h3 class="addonScheduledTasks-taskListHeader">Задачи: </h3>'
-
-      @_taskListElement = $ '<div class="addonScheduledTasks-inDocTaskList"></div>'
-      taskListContainer.append @_taskListElement
-
-      @_redrawTaskList()
-      @_mainContainer.append taskListContainer
-
-    _createCalendarToggleButton: ->
-      return moyskladUtils.uiPrimitives.button
-        caption: 'Календарь'
-        classes: 'addonScheduledTasks-calendarToggleButton'
+      moyskladUtils.currentEntity.addActionButton {
+        caption: "Календарь",
         click: =>
           @_toggleCalendarDisplay()
+      }
+#      @_mainContentsTable = @_mainContainer.children()
+#      taskListContainer = $ '<div class="addonScheduledTasks-inDocTasks"></div>'
+#      taskListContainer.append @_createCalendarToggleButton()
+#
+#      taskListContainer.append $ '<h3 class="addonScheduledTasks-taskListHeader">Задачи: </h3>'
+#
+#      @_taskListElement = $ '<div class="addonScheduledTasks-inDocTaskList"></div>'
+#      taskListContainer.append @_taskListElement
+#
+#      @_redrawTaskList()
+#      @_mainContainer.append taskListContainer
 
     _toggleCalendarDisplay: ->
       if not @_calendar?
         @_renderCalendar()
 
-      @_calendarIsDisplayed = not @_calendarIsDisplayed
-      @_calendarElement.toggle()
-
-      if @_calendarIsDisplayed
-        @_calendar.scrollTo()
+      else
+        @_calendarIsDisplayed = not @_calendarIsDisplayed
+        @_calendarElement.toggle @_calendarIsDisplayed
 
     _forceDisplayCalendar: ->
       if not @_calendarIsDisplayed
@@ -165,20 +158,12 @@
 
     _renderCalendar: ->
       @_calendarElement = $ '<div class="addonScheduledTasks-inDocCalendar"></div>'
-      @_calendarElement.width @_mainContentsTable.width()
+      ($ '.lognex-ScreenWrapper .gwt-TabPanel').before @_calendarElement
 
-      # wrap main contents for correct positioning:
-      # calendar should be on top of other contents,
-      # but task list should be always in the top right part
-      mainContentsWrapper = $ '<div class="addonScheduledTasks-inDocTopLevelElements addonScheduledTasks-mainContentsWrapper"></div>'
-      mainContentsWrapper.append @_calendarElement
-      mainContentsWrapper.append @_mainContentsTable
-      @_mainContainer.prepend mainContentsWrapper
+      @_calendarElement.width @_calendarElement.parent().width()
 
       @_calendar = Calendar.createEditable @_calendarElement, @_calendarHandlers
-
-      @_calendarIsDisplayed = no
-      @_calendarElement.hide()
+      @_calendarIsDisplayed = yes
 
     _calendarHandlers:
       create: (start, end) =>
@@ -299,8 +284,6 @@
 
     do: ->
       @_domElement.fullCalendar.apply @_domElement, arguments
-    scrollTo: ->
-      ($ 'body').scrollTop @_domElement.offset().top - @_screenBorderMargin
 
     adjustToScreenHeight: ->
       maxCalendarHeight = window.innerHeight - 2 * @_screenBorderMargin
@@ -598,13 +581,13 @@
         #document type is always in the hash beginning - between '#' and '/'
         location.hash.substring 1, (location.hash.indexOf '/')
 
-      addActionButton: (caption, click) ->
-        button = @_createActionButton caption
-        button.click click
-        buttonsPanel = $ '.b-air-button-panel'
-        buttonsPanel.find('tr').append button
+      addActionButton: (options) ->
+        button = @_createActionButton options
+        button.click options.click
+        buttonsPanel = $ '.b-air-button-panel > tbody > tr'
+        buttonsPanel.append button
 
-      _createActionButton: (caption) -> $ """
+      _createActionButton: (options) -> $ """
         <td align="left" style="vertical-align: top;">
           <div role="button" class="btn btn-enabled btn-gray" tabindex="0" style="">
             <table>
@@ -614,7 +597,7 @@
               <tbody>
               <tr>
                 <td></td>
-                <td><span class="text">#{caption}</span></td>
+                <td><span class="text">#{options.caption}</span></td>
               </tr>
               </tbody>
             </table>
