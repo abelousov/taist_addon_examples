@@ -173,7 +173,7 @@
       }
       taskListContainer.append closeCalendarButton
 
-      taskListContainer.append $ '<h3 class="addonScheduledTasks-taskListHeader">Задачи: </h3>'
+      taskListContainer.append $ '<h2 class="addonScheduledTasks-taskListHeader">Задачи: </h2>'
 
       @_taskListElement = $ '<div class="addonScheduledTasks-inDocTaskList"></div>'
       taskListContainer.append @_taskListElement
@@ -226,8 +226,6 @@
       nameInput = editDialog.find 'input'
       calendarSelect = editDialog.find 'select'
 
-      console.log "calendars: ", calendarStorage.getOrderedCalendars()
-
       for calendar in calendarStorage.getOrderedCalendars()
         selected =
           if event.calendarId is calendar.id
@@ -235,8 +233,6 @@
           else
             ""
         calendarSelect.append $ """<option value="#{calendar.id}" #{selected}>#{calendar.name}</option>"""
-
-      console.log 'editing: ', event
 
       nameInput.val event.title
       ($ 'body').append editDialog
@@ -253,10 +249,8 @@
             text: "ОК",
             click: ->
               editDialog.dialog "close"
-              #TODO: update vent here from controls
               event.title = nameInput.val()
               event.calendarId = calendarSelect.val()
-              console.log "finished editing: ", event
               callback event
           }
         ]
@@ -266,12 +260,45 @@
 
     _redrawTaskList: ->
       @_taskListElement.empty()
-      orderedTasks = taskStorage.getOrderedEntityTasks @_entityId
-      if orderedTasks.length > 0
-        for task in orderedTasks
-          @_taskListElement.append @_renderTask task
+      tasksByCalendars = @_getTasksByCalendarNames @_entityId
+      if tasksByCalendars.length > 0
+        for calendarTasks in tasksByCalendars
+          @_taskListElement.append $ """<h3 class="addonScheduledTasks-inDocCalendarHeader">#{calendarTasks.calendarName}</h3>"""
+          for task in calendarTasks.tasks
+            @_taskListElement.append @_renderTask task
       else
         @_taskListElement.append $ "<div style='font-style: italic'>Задач нет</div>"
+
+    _getTasksByCalendarNames: (entityId) ->
+      orderedTasks = (taskStorage.getEntityEvents entityId).sort @_compareTasks
+      tasksByCalendars = []
+      for calendar in calendarStorage.getOrderedCalendars()
+        calendarTasks = null
+        for task in orderedTasks
+          if task.calendarId is calendar.id
+            if not calendarTasks?
+              calendarTasks =
+                calendarName: calendar.name
+                tasks: []
+
+              tasksByCalendars.push calendarTasks
+
+            calendarTasks.tasks.push task
+
+      return tasksByCalendars
+
+    _compareTasks: (firstTask, secondTask) ->
+      firstStart = moment firstTask.start
+      secondStart = moment secondTask.start
+
+      return (
+        if firstStart.isBefore secondStart
+          -1
+        else if firstStart.isAfter secondStart
+          1
+        else 0
+      )
+
 
     _renderTask: (task) ->
       taskDate = (task.start.format "DD.MM HH:mm - ") + (task.end.format "HH:mm")
@@ -460,7 +487,7 @@
     getTasksForTimeRange: (start, end) ->
       allFilteredEvents = []
       for entityId of @_tasksData
-        filteredEntityEvents = (@_getEntityEvents entityId).filter (event) ->
+        filteredEntityEvents = (@getEntityEvents entityId).filter (event) ->
           #use inverted comparisons to account for equality
           (not event.start.isBefore start) && (not event.end.isAfter end)
 
@@ -468,25 +495,12 @@
 
       return allFilteredEvents
 
-    _getEntityEvents: (entityId) ->
+    getEntityEvents: (entityId) ->
       ((@_constructEvent rawTask, entityId) for rawTask in @_getEntityTasks entityId)
 
     _getEntityTasks: (entityId) ->
       @_tasksData[entityId] ?= []
       return @_tasksData[entityId]
-
-    getOrderedEntityTasks: (entityId) ->
-      (@_getEntityEvents entityId).sort (firstTask, secondTask) ->
-        firstStart = moment firstTask.start
-        secondStart = moment secondTask.start
-
-        return (
-          if firstStart.isBefore secondStart
-            -1
-          else if firstStart.isAfter secondStart
-            1
-          else 0
-        )
 
     _constructEvent: (taskData, entityId) ->
       return {

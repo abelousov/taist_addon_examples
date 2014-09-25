@@ -24,12 +24,14 @@
 }
 
 .addonScheduledTasks-inDocCalendarContainer {
+  margin-top: 20px;
   margin-bottom: 40px;
 }
 
 .addonScheduledTasks-inDocCalendar {
   width: 75%;
   display: inline-block;
+  vertical-align: top;
 }
 
 .addonScheduledTasks-inDocCalendarCloseLink {
@@ -40,6 +42,7 @@
 .addonScheduledTasks-inDocTasks {
   padding-left: 20px;
   display: inline-block;
+  vertical-align: top;
 }
 
 .addonScheduledTasks-inDocEditDialog .ui-dialog-titlebar-close {
@@ -58,9 +61,14 @@
   cursor: pointer;
 }
 
-.addonScheduledTasks-taskListHeader {
+.addonScheduledTasks-inDocTaskListHeader {
   margin-top: 10px;
   margin-bottom: 5px;
+}
+
+.addonScheduledTasks-inDocCalendarHeader {
+  margin-top: 10px;
+  margin-bottom: 3px;
 }
 
 .addonScheduledTasks-taskDeleteLink {

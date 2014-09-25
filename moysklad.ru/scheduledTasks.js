@@ -216,7 +216,7 @@
         })(this)
       });
       taskListContainer.append(closeCalendarButton);
-      taskListContainer.append($('<h3 class="addonScheduledTasks-taskListHeader">Задачи: </h3>'));
+      taskListContainer.append($('<h2 class="addonScheduledTasks-taskListHeader">Задачи: </h2>'));
       this._taskListElement = $('<div class="addonScheduledTasks-inDocTaskList"></div>');
       taskListContainer.append(this._taskListElement);
       this._redrawTaskList();
@@ -265,14 +265,12 @@
       editDialog = $("<div title=\"" + dialogTitle + "\">\n  <div>\n    <div class=\"addonScheduledTasks-inDocEditDialogInput\">\n      <label>Календарь:\n        <select></select>\n      </label>\n\n    </div>\n    <div class=\"addonScheduledTasks-inDocEditDialogInput\">\n      <label>\n        Название:\n        <input name=\"taskName\" type=\"text\"/>\n      </label>\n    </div>\n  </div>");
       nameInput = editDialog.find('input');
       calendarSelect = editDialog.find('select');
-      console.log("calendars: ", calendarStorage.getOrderedCalendars());
       _ref = calendarStorage.getOrderedCalendars();
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
         calendar = _ref[_i];
         selected = event.calendarId === calendar.id ? "selected" : "";
         calendarSelect.append($("<option value=\"" + calendar.id + "\" " + selected + ">" + calendar.name + "</option>"));
       }
-      console.log('editing: ', event);
       nameInput.val(event.title);
       ($('body')).append(editDialog);
       return editDialog.dialog({
@@ -290,7 +288,6 @@
               editDialog.dialog("close");
               event.title = nameInput.val();
               event.calendarId = calendarSelect.val();
-              console.log("finished editing: ", event);
               return callback(event);
             }
           }
@@ -302,19 +299,61 @@
     };
 
     InDocCalendar.prototype._redrawTaskList = function() {
-      var orderedTasks, task, _i, _len, _results;
+      var calendarTasks, task, tasksByCalendars, _i, _len, _results;
       this._taskListElement.empty();
-      orderedTasks = taskStorage.getOrderedEntityTasks(this._entityId);
-      if (orderedTasks.length > 0) {
+      tasksByCalendars = this._getTasksByCalendarNames(this._entityId);
+      if (tasksByCalendars.length > 0) {
         _results = [];
-        for (_i = 0, _len = orderedTasks.length; _i < _len; _i++) {
-          task = orderedTasks[_i];
-          _results.push(this._taskListElement.append(this._renderTask(task)));
+        for (_i = 0, _len = tasksByCalendars.length; _i < _len; _i++) {
+          calendarTasks = tasksByCalendars[_i];
+          this._taskListElement.append($("<h3 class=\"addonScheduledTasks-inDocCalendarHeader\">" + calendarTasks.calendarName + "</h3>"));
+          _results.push((function() {
+            var _j, _len1, _ref, _results1;
+            _ref = calendarTasks.tasks;
+            _results1 = [];
+            for (_j = 0, _len1 = _ref.length; _j < _len1; _j++) {
+              task = _ref[_j];
+              _results1.push(this._taskListElement.append(this._renderTask(task)));
+            }
+            return _results1;
+          }).call(this));
         }
         return _results;
       } else {
         return this._taskListElement.append($("<div style='font-style: italic'>Задач нет</div>"));
       }
+    };
+
+    InDocCalendar.prototype._getTasksByCalendarNames = function(entityId) {
+      var calendar, calendarTasks, orderedTasks, task, tasksByCalendars, _i, _j, _len, _len1, _ref;
+      orderedTasks = (taskStorage.getEntityEvents(entityId)).sort(this._compareTasks);
+      tasksByCalendars = [];
+      _ref = calendarStorage.getOrderedCalendars();
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        calendar = _ref[_i];
+        calendarTasks = null;
+        for (_j = 0, _len1 = orderedTasks.length; _j < _len1; _j++) {
+          task = orderedTasks[_j];
+          if (task.calendarId === calendar.id) {
+            if (calendarTasks == null) {
+              calendarTasks = {
+                calendarName: calendar.name,
+                tasks: []
+              };
+              tasksByCalendars.push(calendarTasks);
+            }
+            calendarTasks.tasks.push(task);
+          }
+        }
+      }
+      return tasksByCalendars;
+    };
+
+    InDocCalendar.prototype._compareTasks = function(firstTask, secondTask) {
+      var firstStart, secondStart;
+      firstStart = moment(firstTask.start);
+      secondStart = moment(secondTask.start);
+      return (firstStart.isBefore(secondStart) ? -1 : firstStart.isAfter(secondStart) ? 1 : 0);
     };
 
     InDocCalendar.prototype._renderTask = function(task) {
@@ -564,14 +603,14 @@
       var allFilteredEvents, entityId, filteredEntityEvents;
       allFilteredEvents = [];
       for (entityId in this._tasksData) {
-        filteredEntityEvents = (this._getEntityEvents(entityId)).filter(function(event) {
+        filteredEntityEvents = (this.getEntityEvents(entityId)).filter(function(event) {
           return (!event.start.isBefore(start)) && (!event.end.isAfter(end));
         });
         allFilteredEvents = allFilteredEvents.concat(filteredEntityEvents);
       }
       return allFilteredEvents;
     },
-    _getEntityEvents: function(entityId) {
+    getEntityEvents: function(entityId) {
       var rawTask, _i, _len, _ref, _results;
       _ref = this._getEntityTasks(entityId);
       _results = [];
@@ -587,14 +626,6 @@
         _base[entityId] = [];
       }
       return this._tasksData[entityId];
-    },
-    getOrderedEntityTasks: function(entityId) {
-      return (this._getEntityEvents(entityId)).sort(function(firstTask, secondTask) {
-        var firstStart, secondStart;
-        firstStart = moment(firstTask.start);
-        secondStart = moment(secondTask.start);
-        return (firstStart.isBefore(secondStart) ? -1 : firstStart.isAfter(secondStart) ? 1 : 0);
-      });
     },
     _constructEvent: function(taskData, entityId) {
       return {
