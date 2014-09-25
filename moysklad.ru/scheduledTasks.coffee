@@ -656,20 +656,24 @@
         #document type is always in the hash beginning - between '#' and '/'
         location.hash.substring 1, (location.hash.indexOf '/')
 
+      _getButtonsPanel: -> moyskladUtils._getContentsContainer().find '.b-air-button-panel > tbody > tr'
       addToolbarButton: (options) ->
-        buttonsPanel = $ '.b-air-button-panel > tbody > tr'
-        buttonsPanelDom = buttonsPanel[0]
-        addedButtons = (buttonsPanelDom.addedButtons ?= {})
-        if not options.buttonId
-          taistApi.error {
-            halt: true
-            message: "unique options.buttonId is required when using addToolbarButton to avoid duplicating buttons"
-          }
+        #sometimes correct button panel can be not rendered yet
+        #esepcially when switching from other entity
+        buttonsPanel = null
+        taistApi.wait.once (=> (buttonsPanel = @_getButtonsPanel()).length > 0), =>
+          buttonsPanelDom = buttonsPanel[0]
+          addedButtons = (buttonsPanelDom.addedButtons ?= {})
+          if not options.buttonId
+            taistApi.error {
+              halt: true
+              message: "unique options.buttonId is required when using addToolbarButton to avoid duplicating buttons"
+            }
 
-        if not addedButtons[options.buttonId]?
-          addedButtons[options.buttonId] = button = @_createToolbarButton options
-          button.click options.click
-          buttonsPanel.append button
+          if not addedButtons[options.buttonId]?
+            addedButtons[options.buttonId] = button = @_createToolbarButton options
+            button.click options.click
+            buttonsPanel.append button
 
       _createToolbarButton: (options) -> $ """
         <td align="left" style="vertical-align: top;">

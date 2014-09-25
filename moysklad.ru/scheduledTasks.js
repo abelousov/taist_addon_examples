@@ -777,22 +777,34 @@
       getType: function() {
         return location.hash.substring(1, location.hash.indexOf('/'));
       },
+      _getButtonsPanel: function() {
+        return moyskladUtils._getContentsContainer().find('.b-air-button-panel > tbody > tr');
+      },
       addToolbarButton: function(options) {
-        var addedButtons, button, buttonsPanel, buttonsPanelDom;
-        buttonsPanel = $('.b-air-button-panel > tbody > tr');
-        buttonsPanelDom = buttonsPanel[0];
-        addedButtons = (buttonsPanelDom.addedButtons != null ? buttonsPanelDom.addedButtons : buttonsPanelDom.addedButtons = {});
-        if (!options.buttonId) {
-          taistApi.error({
-            halt: true,
-            message: "unique options.buttonId is required when using addToolbarButton to avoid duplicating buttons"
-          });
-        }
-        if (addedButtons[options.buttonId] == null) {
-          addedButtons[options.buttonId] = button = this._createToolbarButton(options);
-          button.click(options.click);
-          return buttonsPanel.append(button);
-        }
+        var buttonsPanel;
+        buttonsPanel = null;
+        return taistApi.wait.once(((function(_this) {
+          return function() {
+            return (buttonsPanel = _this._getButtonsPanel()).length > 0;
+          };
+        })(this)), (function(_this) {
+          return function() {
+            var addedButtons, button, buttonsPanelDom;
+            buttonsPanelDom = buttonsPanel[0];
+            addedButtons = (buttonsPanelDom.addedButtons != null ? buttonsPanelDom.addedButtons : buttonsPanelDom.addedButtons = {});
+            if (!options.buttonId) {
+              taistApi.error({
+                halt: true,
+                message: "unique options.buttonId is required when using addToolbarButton to avoid duplicating buttons"
+              });
+            }
+            if (addedButtons[options.buttonId] == null) {
+              addedButtons[options.buttonId] = button = _this._createToolbarButton(options);
+              button.click(options.click);
+              return buttonsPanel.append(button);
+            }
+          };
+        })(this));
       },
       _createToolbarButton: function(options) {
         return $("<td align=\"left\" style=\"vertical-align: top;\">\n  <div role=\"button\" class=\"btn btn-enabled btn-gray\" tabindex=\"0\" style=\"\">\n    <table>\n      <colgroup>\n        <col>\n      </colgroup>\n      <tbody>\n      <tr>\n        <td></td>\n        <td><span class=\"text\">" + options.caption + "</span></td>\n      </tr>\n      </tbody>\n    </table>\n  </div>\n</td>");
