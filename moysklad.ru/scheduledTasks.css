@@ -23,13 +23,24 @@
   display: none;
 }
 
+.addonScheduledTasks-inDocCalendarTabPanelWrapper {
+  display: inline-block;
+}
+
 .addonScheduledTasks-inDocCalendarContainer {
   margin-top: 20px;
   margin-bottom: 40px;
 }
 
+.addonScheduledTasks-inDocCalendarRootWrapper {
+}
+
 .addonScheduledTasks-inDocCalendar {
-  width: 75%;
+  /*vertical-align: top;*/
+}
+
+.addonScheduledTasks-inDocTasks {
+  padding-left: 10px;
   display: inline-block;
   vertical-align: top;
 }
@@ -37,12 +48,6 @@
 .addonScheduledTasks-inDocCalendarCloseLink {
   margin-bottom: 20px;
   text-align: right;
-}
-
-.addonScheduledTasks-inDocTasks {
-  padding-left: 20px;
-  display: inline-block;
-  vertical-align: top;
 }
 
 .addonScheduledTasks-inDocEditDialog .ui-dialog-titlebar-close {
@@ -92,8 +97,12 @@
   visibility: visible;
 }
 
+/* increase offest to the right to make it ieasier to create overlapping events in a narrow calendar*/
+.fc-event-container {
+  margin-right: 10% !important;
+}
 
-.addonScheduledTasks-eventForCurrentEntity {
+.addonScheduledTasks-calendarEventForCurrentEntity {
   background-color: rgb(83, 173, 78) !important;
   border-color: rgb(83, 173, 78) !important;
 }

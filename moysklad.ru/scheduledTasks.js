@@ -43,7 +43,7 @@
   };
   waitDrawDocumentCalendar = function() {
     return moyskladUtils.currentEntity.onDisplay(function(entityId, mainContainer) {
-      return (new InDocCalendar(entityId, mainContainer)).renderCalendarButton();
+      return (new InDocCalendar(entityId, mainContainer)).render();
     });
   };
   renderGeneralCalendar = function(mainContainer) {
@@ -151,35 +151,90 @@
 
     InDocCalendar.prototype._calendarContainer = null;
 
+    InDocCalendar.prototype._taskListContainer = null;
+
     InDocCalendar.prototype._taskListElement = null;
+
+    InDocCalendar.prototype._calendarToggleButton = null;
 
     InDocCalendar.prototype._calendarIsDisplayed = null;
 
     InDocCalendar.prototype._calendar = null;
 
+    InDocCalendar.prototype._tabPanel = null;
+
     function InDocCalendar(_entityId) {
       this._entityId = _entityId;
     }
 
-    InDocCalendar.prototype.renderCalendarButton = function() {
-      return moyskladUtils.currentEntity.addToolbarButton({
-        caption: "Календарь",
-        buttonId: "addonScheduledTasks-showCalendarButton",
+    InDocCalendar.prototype.render = function() {
+      this._renderContainers();
+      this._renderTaskStructure();
+      return this._redrawTaskList();
+    };
+
+    InDocCalendar.prototype._renderTaskStructure = function() {
+      var taskListHeader;
+      this._calendarToggleButton = moyskladUtils.uiPrimitives.button({
+        type: 'link',
+        caption: "Открыть календарь",
+        classes: "addonScheduledTasks-inDocCalendarCloseLink",
         click: (function(_this) {
           return function() {
             return _this._toggleCalendarDisplay();
           };
         })(this)
       });
+      taskListHeader = $('<h2 class="addonScheduledTasks-taskListHeader">Задачи: </h2>');
+      this._taskListElement = $('<div class="addonScheduledTasks-inDocTaskList"></div>');
+      this._taskListContainer.empty();
+      return this._taskListContainer.append(this._calendarToggleButton, taskListHeader, this._taskListElement);
+    };
+
+    InDocCalendar.prototype._renderContainers = function() {
+      var containersExistAlready, prevEl, renderDiv, rootWrapper, rootWrapperClass, tabPanelWrapper;
+      this._tabPanel = $(".lognex-ScreenWrapper .gwt-TabPanel");
+      prevEl = this._tabPanel.prev();
+      rootWrapperClass = "addonScheduledTasks-inDocCalendarRootWrapper";
+      containersExistAlready = ($("." + rootWrapperClass)).length > 0;
+      renderDiv = (function(_this) {
+        return function(divClass, parent) {
+          return _this._renderDiv(divClass, parent, containersExistAlready);
+        };
+      })(this);
+      rootWrapper = renderDiv(rootWrapperClass, null);
+      tabPanelWrapper = renderDiv("addonScheduledTasks-inDocCalendarTabPanelWrapper", rootWrapper);
+      this._calendarContainer = renderDiv("addonScheduledTasks-inDocCalendarContainer", tabPanelWrapper);
+      this._taskListContainer = renderDiv("addonScheduledTasks-inDocTasks", rootWrapper);
+      if (!containersExistAlready) {
+        rootWrapper.width(($('body')).width());
+        tabPanelWrapper.append(this._tabPanel);
+        return prevEl.after(rootWrapper);
+      }
+    };
+
+    InDocCalendar.prototype._renderDiv = function(className, parent, useExisting) {
+      var div;
+      if (useExisting) {
+        div = $("." + className);
+      } else {
+        div = $("<div class='" + className + "'></div>");
+        if (parent != null) {
+          parent.append(div);
+        }
+      }
+      return div;
     };
 
     InDocCalendar.prototype._toggleCalendarDisplay = function() {
       if (this._calendar == null) {
-        this._render();
+        this._renderCalendar();
+        this._calendarIsDisplayed = true;
       } else {
         this._calendarIsDisplayed = !this._calendarIsDisplayed;
         this._calendarContainer.toggle(this._calendarIsDisplayed);
       }
+      this._calendarToggleButton.find('span').text((this._calendarIsDisplayed ? "Закрыть" : "Открыть") + " календарь");
       if (this._calendarIsDisplayed) {
         return this._scrollToCalendar();
       }
@@ -195,32 +250,12 @@
       }
     };
 
-    InDocCalendar.prototype._render = function() {
-      var calendarElement, closeCalendarButton, taskListContainer;
-      this._calendarContainer = $('<div class="addonScheduledTasks-inDocCalendarContainer"></div>');
-      ($('.lognex-ScreenWrapper .gwt-TabPanel')).before(this._calendarContainer);
+    InDocCalendar.prototype._renderCalendar = function() {
+      var calendarElement;
       this._calendarContainer.width(this._calendarContainer.parent().width());
       calendarElement = $('<div class="addonScheduledTasks-inDocCalendar"></div>');
       this._calendarContainer.append(calendarElement);
-      this._calendar = Calendar.createEditable(calendarElement, this._getCalendarHandlers());
-      this._calendarIsDisplayed = true;
-      taskListContainer = $('<div class="addonScheduledTasks-inDocTasks"></div>');
-      closeCalendarButton = moyskladUtils.uiPrimitives.button({
-        type: 'link',
-        caption: "Закрыть календарь",
-        classes: "addonScheduledTasks-inDocCalendarCloseLink",
-        click: (function(_this) {
-          return function() {
-            return _this._toggleCalendarDisplay();
-          };
-        })(this)
-      });
-      taskListContainer.append(closeCalendarButton);
-      taskListContainer.append($('<h2 class="addonScheduledTasks-taskListHeader">Задачи: </h2>'));
-      this._taskListElement = $('<div class="addonScheduledTasks-inDocTaskList"></div>');
-      taskListContainer.append(this._taskListElement);
-      this._redrawTaskList();
-      return this._calendarContainer.append(taskListContainer);
+      return this._calendar = Calendar.createEditable(calendarElement, this._getCalendarHandlers());
     };
 
     InDocCalendar.prototype._getCalendarHandlers = function() {
@@ -236,8 +271,9 @@
         })(this),
         enhance: (function(_this) {
           return function(event) {
+            event.className = "addonScheduledTasks-calendarEvent";
             if (event.entityId === _this._entityId) {
-              event.className = "addonScheduledTasks-eventForCurrentEntity";
+              event.className += " addonScheduledTasks-calendarEventForCurrentEntity";
               return event.editable = true;
             } else {
               return event.editable = false;

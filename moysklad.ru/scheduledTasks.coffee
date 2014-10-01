@@ -39,7 +39,7 @@
 
   waitDrawDocumentCalendar = ->
     moyskladUtils.currentEntity.onDisplay (entityId, mainContainer) ->
-      (new InDocCalendar entityId, mainContainer).renderCalendarButton()
+      (new InDocCalendar entityId, mainContainer).render()
 
   renderGeneralCalendar = (mainContainer) ->
     calendarElement = $ "<div class=\"addonScheduledTasks-mainContainer\"></div>"
@@ -119,27 +119,77 @@
   class InDocCalendar
     _entityId: null
     _calendarContainer: null
+    _taskListContainer: null
     _taskListElement: null
+    _calendarToggleButton: null
     _calendarIsDisplayed: null
     _calendar: null
+    _tabPanel: null
 
     constructor: (@_entityId) ->
 
-    renderCalendarButton: ->
-      moyskladUtils.currentEntity.addToolbarButton {
-        caption: "Календарь"
-        buttonId: "addonScheduledTasks-showCalendarButton"
+    render: ->
+      @_renderContainers()
+      @_renderTaskStructure()
+      @_redrawTaskList()
+
+    _renderTaskStructure: ->
+      @_calendarToggleButton = moyskladUtils.uiPrimitives.button {
+        type: 'link'
+        caption: "Открыть календарь"
+        classes: "addonScheduledTasks-inDocCalendarCloseLink"
         click: =>
           @_toggleCalendarDisplay()
       }
+      taskListHeader = $ '<h2 class="addonScheduledTasks-taskListHeader">Задачи: </h2>'
+      @_taskListElement = $ '<div class="addonScheduledTasks-inDocTaskList"></div>'
+
+      #remove any previous content if existed
+      @_taskListContainer.empty()
+      @_taskListContainer.append @_calendarToggleButton, taskListHeader, @_taskListElement
+
+    _renderContainers: ->
+      @_tabPanel = $ ".lognex-ScreenWrapper .gwt-TabPanel"
+      prevEl = @_tabPanel.prev()
+
+      rootWrapperClass = "addonScheduledTasks-inDocCalendarRootWrapper"
+
+      containersExistAlready = ($ "." + rootWrapperClass).length > 0
+      renderDiv = (divClass, parent) => @_renderDiv divClass, parent, containersExistAlready
+
+      # to insert new content right to the tabPanel, first create common wrapper for them both
+      rootWrapper = renderDiv rootWrapperClass, null
+
+      # wrap tabPanel into a new container to make it easier to change its layout
+      # add calendarContainer next to it to replace it when calendar is turned on
+      tabPanelWrapper = renderDiv "addonScheduledTasks-inDocCalendarTabPanelWrapper", rootWrapper
+      @_calendarContainer = renderDiv "addonScheduledTasks-inDocCalendarContainer", tabPanelWrapper
+      @_taskListContainer = renderDiv "addonScheduledTasks-inDocTasks", rootWrapper
+
+      if not containersExistAlready
+        rootWrapper.width ($ 'body').width()
+        tabPanelWrapper.append @_tabPanel
+        prevEl.after rootWrapper
+
+    _renderDiv: (className, parent, useExisting) ->
+      if useExisting
+        div = $ ".#{className}"
+      else
+        div = $ "<div class='#{className}'></div>"
+        parent?.append div
+
+      return div
 
     _toggleCalendarDisplay: ->
       if not @_calendar?
-        @_render()
+        @_renderCalendar()
+        @_calendarIsDisplayed = yes
 
       else
         @_calendarIsDisplayed = not @_calendarIsDisplayed
         @_calendarContainer.toggle @_calendarIsDisplayed
+
+      @_calendarToggleButton.find('span').text (if @_calendarIsDisplayed then "Закрыть" else "Открыть") + " календарь"
 
       if @_calendarIsDisplayed
         @_scrollToCalendar()
@@ -151,43 +201,21 @@
       if not @_calendarIsDisplayed
         @_toggleCalendarDisplay()
 
-    _render: ->
-      @_calendarContainer = $ '<div class="addonScheduledTasks-inDocCalendarContainer"></div>'
-      ($ '.lognex-ScreenWrapper .gwt-TabPanel').before @_calendarContainer
+    _renderCalendar: ->
       @_calendarContainer.width @_calendarContainer.parent().width()
-
       calendarElement = $ '<div class="addonScheduledTasks-inDocCalendar"></div>'
       @_calendarContainer.append calendarElement
 
       @_calendar = Calendar.createEditable calendarElement, @_getCalendarHandlers()
-      @_calendarIsDisplayed = yes
-
-      taskListContainer = $ '<div class="addonScheduledTasks-inDocTasks"></div>'
-
-      closeCalendarButton = moyskladUtils.uiPrimitives.button {
-        type: 'link'
-        caption: "Закрыть календарь"
-        classes: "addonScheduledTasks-inDocCalendarCloseLink"
-        click: =>
-          @_toggleCalendarDisplay()
-      }
-      taskListContainer.append closeCalendarButton
-
-      taskListContainer.append $ '<h2 class="addonScheduledTasks-taskListHeader">Задачи: </h2>'
-
-      @_taskListElement = $ '<div class="addonScheduledTasks-inDocTaskList"></div>'
-      taskListContainer.append @_taskListElement
-
-      @_redrawTaskList()
-      @_calendarContainer.append taskListContainer
 
     _getCalendarHandlers: ->
       create: (start, end, callback) =>
         @_editUnconditionally {start, end, entityId: @_entityId}, true, callback
 
       enhance: (event) =>
+        event.className = "addonScheduledTasks-calendarEvent"
         if event.entityId is @_entityId
-          event.className = "addonScheduledTasks-eventForCurrentEntity"
+          event.className += " addonScheduledTasks-calendarEventForCurrentEntity"
           event.editable = true
         else
           event.editable = false
@@ -298,7 +326,6 @@
           1
         else 0
       )
-
 
     _renderTask: (task) ->
       taskDate = (task.start.format "DD.MM HH:mm - ") + (task.end.format "HH:mm")
