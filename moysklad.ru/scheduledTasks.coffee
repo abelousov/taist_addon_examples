@@ -24,8 +24,8 @@
       getCompanyKey().length > 0), ->
         taistApi.companyData.setCompanyKey getCompanyKey()
         calendarStorage.init ->
-          taskStorage.init callback
-
+          taskStorage.init ->
+            calendarDisplay.init callback
 
   getCompanyKey = ->
     $('.companyName>span').text()
@@ -47,7 +47,7 @@
     #calendar element should be appended to the dom before rendering the calendar
     mainContainer.append calendarElement
 
-    Calendar.createReadOnly calendarElement
+    calendarFactory.createReadOnly calendarElement
 
   class CalendarSettings
     _calendarsList: null
@@ -203,88 +203,11 @@
 
     _renderCalendar: ->
       @_calendarContainer.width @_calendarContainer.parent().width()
-      calendarElement = $ '<div class="addonScheduledTasks-inDocCalendar"></div>'
-      @_calendarContainer.append calendarElement
 
-      @_calendar = Calendar.createEditable calendarElement, @_getCalendarHandlers()
-
-    _getCalendarHandlers: ->
-      create: (start, end, callback) =>
-        @_editUnconditionally {start, end, entityId: @_entityId}, true, callback
-
-      enhance: (event) =>
-        event.className = "addonScheduledTasks-calendarEvent"
-        if event.entityId is @_entityId
-          event.className += " addonScheduledTasks-calendarEventForCurrentEntity"
-          event.editable = true
-        else
-          event.editable = false
-
-      onUpdate: =>
+      onCalendarUpdate = =>
         @_redrawTaskList()
 
-      edit: (event, callback) =>
-        if event.editable
-          @_editUnconditionally event, false, callback
-
-    _editUnconditionally: (event, isNew, callback) ->
-      dialogTitle =
-        if isNew
-          "Создание задачи"
-        else
-          "Изменение задачи"
-      editDialog = $ """
-<div title="#{dialogTitle}">
-  <div>
-    <div class="addonScheduledTasks-inDocEditDialogInput">
-      <label>Календарь:
-        <select></select>
-      </label>
-
-    </div>
-    <div class="addonScheduledTasks-inDocEditDialogInput">
-      <label>
-        Название:
-        <input name="taskName" type="text"/>
-      </label>
-    </div>
-  </div>
-        """
-
-      nameInput = editDialog.find 'input'
-      calendarSelect = editDialog.find 'select'
-
-      for calendar in calendarStorage.getOrderedCalendars()
-        selected =
-          if event.calendarId is calendar.id
-            "selected"
-          else
-            ""
-        calendarSelect.append $ """<option value="#{calendar.id}" #{selected}>#{calendar.name}</option>"""
-
-      nameInput.val event.title
-      ($ 'body').append editDialog
-      editDialog.dialog {
-        dialogClass: "addonScheduledTasks-inDocEditDialog"
-        closeOnEscape: true
-        buttons: [
-          {
-            text: "Отмена",
-            click: ->
-              editDialog.dialog "close"
-          },
-          {
-            text: "ОК",
-            click: ->
-              editDialog.dialog "close"
-              event.title = nameInput.val()
-              event.calendarId = calendarSelect.val()
-              callback event
-          }
-        ]
-        close: ->
-          editDialog.remove()
-      }
+      @_calendar = calendarFactory.createEditable @_entityId, @_calendarContainer, onCalendarUpdate
 
     _redrawTaskList: ->
       @_taskListElement.empty()
@@ -343,96 +266,232 @@
       @_forceDisplayCalendar()
       @_calendar.scrollToMoment task.start
 
-  class Calendar
-    _screenBorderMargin: 20
-    _domElement: null
+  eventEditDialog =
+    edit: (event, isNew, callback) ->
+      dialogControls = @_createDialog isNew
 
-    @createReadOnly: (domElement) ->
-      Calendar._create domElement, null
+      dialogControls.nameInput.val event.title
+      @_fillCalendarSelect event, dialogControls.calendarSelect
 
-    @createEditable: (domElement, handlers) ->
-      return Calendar._create domElement, @_getEditableCalendarOptionsFactory handlers
+      @_showDialog dialogControls.dialog, =>
+        event.title = dialogControls.nameInput.val()
+        event.calendarId = dialogControls.calendarSelect.val()
+        callback event
 
-    @_getEditableCalendarOptionsFactory: (handlers) ->
-      updateTaskFromEvent = (event) ->
-        taskStorage.update event, ->
-          handlers.onUpdate()
+    _createDialog: (isNew) ->
+      title =
+        if isNew
+          "Создание задачи"
+        else
+          "Изменение задачи"
 
-      return (calendar) ->
-        selectable: true
-        selectHelper: true
-        editable: true
-        eventDrop: updateTaskFromEvent
-        eventResize: updateTaskFromEvent
+      dialog = @_renderDialog title
 
-        select: (start, end) ->
-          handlers.create start, end, (newEventData) ->
-            taskStorage.create newEventData, (newEvent) ->
-              handlers.enhance newEvent
-              calendar.do 'renderEvent', newEvent
-              handlers.onUpdate()
+      nameInput = dialog.find 'input'
+      calendarSelect = dialog.find 'select'
 
-          calendar.do 'unselect'
+      return {dialog, nameInput, calendarSelect}
 
-        eventClick: (event, jsEvent) ->
-          if not ($ jsEvent.target).hasClass 'ownClickProcessing'
-            handlers.edit event, (editedTask) ->
-              calendar.do 'renderEvent', event
-              updateTaskFromEvent editedTask
+    _fillCalendarSelect: (event, calendarSelect) ->
+      for calendar in calendarStorage.getOrderedCalendars()
+        selected =
+          if event.calendarId is calendar.id
+            "selected"
+          else
+            ""
+        calendarSelect.append $ """<option value="#{calendar.id}" #{selected}>#{calendar.name}</option>"""
 
-        eventRender: (event, domElement) ->
-          if event.editable
-            deleteLink = $ '<a class="addonScheduledTasks-taskDeleteLink ownClickProcessing">Х</a>'
-            deleteLink.click ->
-              if window.confirm "Удалить задачу \"#{event.title}\"?"
-                taskStorage.delete event, ->
-                  calendar.do 'removeEvents', (taskToConfirmRemoval) ->
-                    taskToConfirmRemoval is event
-                  handlers.onUpdate()
-            domElement.append deleteLink
+    _showDialog: (dialogElement, okHandler) ->
+      onClose = (isOk) ->
+        dialogElement.dialog "close"
+        if isOk
+          okHandler()
 
-          return domElement
+      ($ 'body').append dialogElement
+      dialogElement.dialog {
+        dialogClass: "addonScheduledTasks-inDocEditDialog"
+        closeOnEscape: true
+        buttons: [
+          {
+            text: "Отмена",
+            click: -> onClose false
+          },
+          {
+            text: "ОК",
+            click: -> onClose true
+          }
+        ]
+        close: ->
+          dialogElement.remove()
+      }
 
-        events: (start, end, timezone, callback) ->
-          Calendar._baseOptions.events start, end, timezone, (eventsList) ->
-            (handlers.enhance event) for event in eventsList
-            callback eventsList
+    _renderDialog: (title) -> $ """
+            <div title="#{title}">
+              <div>
+                <div class="addonScheduledTasks-inDocEditDialogInput">
+                  <label>Календарь:
+                    <select></select>
+                  </label>
 
-    @_create: (domElement, advancedOptionsFactory) ->
-      calendar = new Calendar domElement
-      advancedOptions = (advancedOptionsFactory? calendar) ? {}
-      calendar.do ($.extend {}, Calendar._baseOptions, advancedOptions)
+                </div>
+                <div class="addonScheduledTasks-inDocEditDialogInput">
+                  <label>
+                    Название:
+                    <input name="taskName" type="text"/>
+                  </label>
+                </div>
+              </div>
+          """
 
-      calendar.adjustToScreenHeight()
+  calendarFactory =
+    createReadOnly: (calendarContainer) ->
+      @_createCalendar calendarContainer, => baseCalendarOptions
+
+    createEditable: (entityId, calendarContainer, onUpdate) ->
+      @_createCalendar calendarContainer, (calendar) -> new EditableCalendarOptions entityId, calendar, onUpdate
+
+    _createCalendar: (calendarContainer, createCalendarOptionsCallback) ->
+      calendar = new Calendar calendarContainer
+      calendarOptions = createCalendarOptionsCallback calendar
+      calendar.render calendarOptions
 
       return calendar
 
-    constructor: (@_domElement) ->
+  baseCalendarOptions =
+    header:
+      left: 'today prev,next'
+      center: 'title'
+      right: 'agendaWeek,month'
+    defaultView: 'agendaWeek'
+    events: (start, end, unusedTimezone, callback) ->
+      eventsList = taskStorage.getTasksForTimeRange start, end
+      for event in eventsList
+        entityHashPath = event.taskData.entityType + '/edit?id=' + event.entityId
+        event.url = location.href.replace location.hash, '#' + entityHashPath
+
+      callback eventsList
+
+  class EditableCalendarOptions
+    _calendar: null
+    _onUpdate: null
+    _entityId: null
+    header:
+      left: 'today prev,next'
+      center: 'title'
+      right: 'agendaWeek,month'
+    defaultView: 'agendaWeek'
+    minTime: '06:00'
+    maxTime: '23:00'
+
+    constructor: (@_entityId, @_calendar, @_onUpdate) ->
+      @_bindPublicMethods()
+
+    _bindPublicMethods: ->
+      #bind public methods to self or they will be called with 'this' set to calendar object
+      self = @
+      for propName, propValue of self
+        if propName[0] isnt "_" and typeof propValue is "function"
+          do (propName, propValue) ->
+            self[propName] = ->
+              propValue.apply self, arguments
+
+    _updateTaskFromEvent: (event) ->
+      taskStorage.update event, =>
+        @_onUpdate()
+    _decorateFreshlyCreatedEvent: (event) ->
+      event.className = "addonScheduledTasks-calendarEvent"
+      eventBelongsToCurrentEntity = event.entityId is @_entityId
+      if eventBelongsToCurrentEntity
+        event.className += " addonScheduledTasks-calendarEventForCurrentEntity"
+
+      event.editable = eventBelongsToCurrentEntity
+
+    selectable: true
+    selectHelper: true
+    editable: true
+    eventDrop: (event) -> @_updateTaskFromEvent event
+    eventResize: (event) -> @_updateTaskFromEvent event
+
+    select: (start, end) ->
+      eventEditDialog.edit {start, end, entityId: @_entityId}, true, (newEventData) =>
+        taskStorage.create newEventData, (newEvent) =>
+          @_decorateFreshlyCreatedEvent newEvent
+          @_calendar.do 'renderEvent', newEvent
+          @_onUpdate()
+
+      @_calendar.do 'unselect'
+
+    eventClick: (event, jsEvent) ->
+      if not ($ jsEvent.target).hasClass 'ownClickProcessing'
+        if event.editable
+          eventEditDialog.edit event, false, (editedTask) =>
+            @_calendar.do 'renderEvent', event
+            @_updateTaskFromEvent editedTask
+
+    eventRender: (event, domElement) ->
+      if event.editable
+        domElement.append @_createDeleteLink event
+      return domElement
+
+    events: (start, end, timezone, callback) ->
+      baseCalendarOptions.events start, end, timezone, (eventsList) =>
+        (@_decorateFreshlyCreatedEvent event) for event in eventsList
+        callback eventsList
+
+    _createDeleteLink: (event) ->
+      deleteLink = $ '<a class="addonScheduledTasks-taskDeleteLink ownClickProcessing">Х</a>'
+      deleteLink.click =>
+        if window.confirm "Удалить задачу \"#{event.title}\"?"
+          taskStorage.delete event, =>
+            @_calendar.do 'removeEvents', (taskToConfirmRemoval) =>
+              taskToConfirmRemoval is event
+            @_onUpdate()
+
+      return deleteLink
+
+  class Calendar
+    _screenBorderMargin: 20
+    _calendarContainer: null
+    _calendarControl: null
+
+    constructor: (@_calendarContainer) ->
+    render: (options) ->
+      calendarDisplayFlags = @_renderCalendarDisplayFlags()
+      @_calendarControl = $ '<div></div>'
+
+      @_calendarContainer.append calendarDisplayFlags, @_calendarControl
+      @do options
+      @_adjustToScreenHeight()
 
     do: ->
-      @_domElement.fullCalendar.apply @_domElement, arguments
+      @_calendarControl.fullCalendar.apply @_calendarControl, arguments
 
-    adjustToScreenHeight: ->
+    _renderCalendarDisplayFlags: ->
+      self = @
+      flagsContainer = $ "<div class='addonScheduledTasks-calendarDisplayFlags'><span class='addonScheduledTasks-calendarDisplayCaption'>Календари:</span></div>"
+      for calendar in calendarStorage.getOrderedCalendars()
+        do (calendar) ->
+          isVisible = calendarDisplay.calendarIsVisible calendar.id
+          displayFlag = $ """<label><input type="checkbox" />#{calendar.name}</label>"""
+          checkbox = displayFlag.find 'input'
+          checkbox.prop 'checked', isVisible
+          checkbox.click ->
+            calendarDisplay.setCalendarVisibility calendar.id, (checkbox.prop "checked"), ->
+              self._redraw()
+          flagsContainer.append displayFlag
+
+      return flagsContainer
+
+    _adjustToScreenHeight: ->
       maxCalendarHeight = window.innerHeight - 2 * @_screenBorderMargin
-      if @_domElement.height() > maxCalendarHeight
+      if @_calendarContainer.height() > maxCalendarHeight
         @do 'option', 'height', maxCalendarHeight
+
+    _redraw: ->
+      @do 'refetchEvents'
 
     scrollToMoment: (moment) ->
       @do 'gotoDate', moment
-
-    @_baseOptions:
-      header:
-        left: 'today prev,next'
-        center: 'title'
-        right: 'agendaWeek,month'
-      defaultView: 'agendaWeek'
-      events: (start, end, unusedTimezone, callback) ->
-        eventsList = taskStorage.getTasksForTimeRange start, end
-        for event in eventsList
-          entityHashPath = event.taskData.entityType + '/edit?id=' + event.entityId
-          event.url = location.href.replace location.hash, '#' + entityHashPath
-
-        callback eventsList
 
   calendarStorage =
     _calendarsKey: 'calendars'
@@ -514,13 +573,16 @@
     getTasksForTimeRange: (start, end) ->
       allFilteredEvents = []
       for entityId of @_tasksData
-        filteredEntityEvents = (@getEntityEvents entityId).filter (event) ->
-          #use inverted comparisons to account for equality
-          (not event.start.isBefore start) && (not event.end.isAfter end)
+        filteredEntityEvents = (@getEntityEvents entityId).filter (event) =>
+          (@_eventFitsTimeRange event, start, end) and calendarDisplay.calendarIsVisible event.calendarId
 
         allFilteredEvents = allFilteredEvents.concat filteredEntityEvents
 
       return allFilteredEvents
+
+    _eventFitsTimeRange: (event, start, end) ->
+      #use inverted comparisons to account for equality
+      (not event.start.isBefore start) && (not event.end.isAfter end)
 
     getEntityEvents: (entityId) ->
       ((@_constructEvent rawTask, entityId) for rawTask in @_getEntityTasks entityId)
@@ -538,6 +600,18 @@
         entityId
         taskData
       }
+
+  calendarDisplay =
+    _hiddenCalendarsKey: 'hiddenCalendars'
+    init: (callback) ->
+      taistApi.userData.get @_hiddenCalendarsKey, (hiddenCalendars) =>
+        @_hiddenCalendars = hiddenCalendars ? {}
+        callback()
+
+    calendarIsVisible: (calendarId) -> not @_hiddenCalendars[calendarId]
+    setCalendarVisibility: (calendarId, isVisible, callback) ->
+      @_hiddenCalendars[calendarId] = not isVisible
+      taistApi.userData.set @_hiddenCalendarsKey, @_hiddenCalendars, callback
 
   moyskladUtils =
     _getMainPanel: -> $ '.b-application-panel'

@@ -23,6 +23,24 @@
   display: none;
 }
 
+.addonScheduledTasks-calendarDisplayCaption {
+  margin-right: 10px;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.addonScheduledTasks-calendarDisplayFlags {
+  margin-bottom: 20px;
+}
+
+.addonScheduledTasks-calendarDisplayFlags label {
+  margin-right: 10px;
+}
+
+.addonScheduledTasks-calendarDisplayFlags input {
+  margin-right: 5px;
+}
+
 .addonScheduledTasks-inDocCalendarTabPanelWrapper {
   display: inline-block;
 }
@@ -33,10 +51,6 @@
 }
 
 .addonScheduledTasks-inDocCalendarRootWrapper {
-}
-
-.addonScheduledTasks-inDocCalendar {
-  /*vertical-align: top;*/
 }
 
 .addonScheduledTasks-inDocTasks {
