@@ -443,6 +443,8 @@
       right: 'agendaWeek,month'
     },
     defaultView: 'agendaWeek',
+    minTime: '06:00',
+    maxTime: '23:00',
     events: function(start, end, unusedTimezone, callback) {
       var entityHashPath, event, eventsList, _i, _len;
       eventsList = taskStorage.getTasksForTimeRange(start, end);
@@ -461,24 +463,27 @@
 
     EditableCalendarOptions.prototype._entityId = null;
 
-    EditableCalendarOptions.prototype.header = {
-      left: 'today prev,next',
-      center: 'title',
-      right: 'agendaWeek,month'
-    };
-
-    EditableCalendarOptions.prototype.defaultView = 'agendaWeek';
-
-    EditableCalendarOptions.prototype.minTime = '06:00';
-
-    EditableCalendarOptions.prototype.maxTime = '23:00';
-
     function EditableCalendarOptions(_entityId, _calendar, _onUpdate) {
       this._entityId = _entityId;
       this._calendar = _calendar;
       this._onUpdate = _onUpdate;
+      this._inheritBaseOptions();
       this._bindPublicMethods();
     }
+
+    EditableCalendarOptions.prototype._inheritBaseOptions = function() {
+      var propName, propValue, _results;
+      _results = [];
+      for (propName in baseCalendarOptions) {
+        propValue = baseCalendarOptions[propName];
+        if (this[propName] == null) {
+          _results.push(this[propName] = propValue);
+        } else {
+          _results.push(void 0);
+        }
+      }
+      return _results;
+    };
 
     EditableCalendarOptions.prototype._bindPublicMethods = function() {
       var propName, propValue, self, _results;

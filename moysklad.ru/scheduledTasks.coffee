@@ -363,6 +363,8 @@
       center: 'title'
       right: 'agendaWeek,month'
     defaultView: 'agendaWeek'
+    minTime: '06:00'
+    maxTime: '23:00'
     events: (start, end, unusedTimezone, callback) ->
       eventsList = taskStorage.getTasksForTimeRange start, end
       for event in eventsList
@@ -375,16 +377,18 @@
     _calendar: null
     _onUpdate: null
     _entityId: null
-    header:
-      left: 'today prev,next'
-      center: 'title'
-      right: 'agendaWeek,month'
-    defaultView: 'agendaWeek'
-    minTime: '06:00'
-    maxTime: '23:00'
 
     constructor: (@_entityId, @_calendar, @_onUpdate) ->
+      @_inheritBaseOptions()
       @_bindPublicMethods()
+
+    _inheritBaseOptions: ->
+      # workaround not to use straightforward CoffeeScript inheritance
+      # as it adds additional functions in the beginning of resulting JS file
+      # and it no longer is a single function declaration that is required by addon loader
+      for propName, propValue of baseCalendarOptions
+        if !@[propName]?
+          @[propName] = propValue
 
     _bindPublicMethods: ->
       #bind public methods to self or they will be called with 'this' set to calendar object
@@ -510,7 +514,6 @@
     getOrderedCalendars: ->
      @_calendars.slice().sort (cal1, cal2) ->
        cal1.name.localeCompare cal2.name
-
 
     save: (callback) ->
       taistApi.companyData.set @_calendarsKey, @_calendars, callback
