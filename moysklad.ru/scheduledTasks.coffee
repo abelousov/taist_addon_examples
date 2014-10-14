@@ -20,15 +20,16 @@
 
   init = (callback) ->
     taistApi.haltOnError = true
-    taistApi.wait.once (->
-      getCompanyKey().length > 0), ->
-        taistApi.companyData.setCompanyKey getCompanyKey()
-        calendarStorage.init ->
-          taskStorage.init ->
-            calendarDisplay.init callback
+    getCompanyKey (companyKey) ->
+      taistApi.companyData.setCompanyKey companyKey
+      calendarStorage.init ->
+        taskStorage.init ->
+          calendarDisplay.init callback
 
-  getCompanyKey = ->
-    $('.companyName>span').text()
+  getCompanyKey = (cb) ->
+    $.get('https://online.moysklad.ru/exchange/rest/ms/xml/MyCompany/list/?count=1')
+      .done (xml) ->
+        cb $('accountUuid:first', xml).text()
 
   drawGeneralCalendarTab = ->
     moyskladUtils.topMenu.addMenuItemWithoutSubItems 'Календарь', renderGeneralCalendar
