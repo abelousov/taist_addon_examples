@@ -165,6 +165,7 @@
       # add calendarContainer next to it to replace it when calendar is turned on
       tabPanelWrapper = renderDiv "addonScheduledTasks-inDocCalendarTabPanelWrapper", rootWrapper
       @_calendarContainer = renderDiv "addonScheduledTasks-inDocCalendarContainer", tabPanelWrapper
+      @_calendarContainer.empty()
       @_taskListContainer = renderDiv "addonScheduledTasks-inDocTasks", rootWrapper
 
       if not containersExistAlready
@@ -763,7 +764,7 @@
         # all main DOM elements are preserverd and used many times, so wait.elementRender will not work - look for hash change here
         taistApi.hash.when @_idInHashRegexp, =>
           # will wait for element to render - first time it takes some time
-          taistApi.wait.once (-> moyskladUtils._getContentsContainer().find('> .lognex-ScreenWrapper > table').length > 0), =>
+          taistApi.wait.once (-> moyskladUtils._getContentsContainer().find('> .lognex-ScreenWrapper .gwt-TabPanel').length > 0), =>
             handler @getId(), moyskladUtils._getContentsContainer()
 
       getId: ->

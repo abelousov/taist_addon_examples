@@ -207,6 +207,7 @@
       rootWrapper = renderDiv(rootWrapperClass, null);
       tabPanelWrapper = renderDiv("addonScheduledTasks-inDocCalendarTabPanelWrapper", rootWrapper);
       this._calendarContainer = renderDiv("addonScheduledTasks-inDocCalendarContainer", tabPanelWrapper);
+      this._calendarContainer.empty();
       this._taskListContainer = renderDiv("addonScheduledTasks-inDocTasks", rootWrapper);
       if (!containersExistAlready) {
         rootWrapper.width(($('body')).width());
@@ -983,7 +984,7 @@
         return taistApi.hash.when(this._idInHashRegexp, (function(_this) {
           return function() {
             return taistApi.wait.once((function() {
-              return moyskladUtils._getContentsContainer().find('> .lognex-ScreenWrapper > table').length > 0;
+              return moyskladUtils._getContentsContainer().find('> .lognex-ScreenWrapper .gwt-TabPanel').length > 0;
             }), function() {
               return handler(_this.getId(), moyskladUtils._getContentsContainer());
             });
