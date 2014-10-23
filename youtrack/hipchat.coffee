@@ -12,6 +12,7 @@
     location.host
 
   linkServices = () ->
+
     services.settings.hipchat.greeting = 'Integration with YouTrack started'
     taistApi.services.link
       source:
@@ -20,10 +21,31 @@
       target:
         name: 'hipchat'
         settings: services.settings.hipchat
+
+      # serverName = services.settings.youtrack.serverName;
+      # TODO pass services.settings to the converter function;
       converter: (record) ->
-        updates = []
-        for key, val of record.change then updates.push "#{key}: #{val.new}"
-        record.id + ' ' + updates.join()
+
+        wrapId = (id) ->
+          "<a href=\"http://taist.myjetbrains.com/youtrack/issue/#{id}\">#{id}</a>"
+
+        beautify = (key, val) ->
+          switch key.toLowerCase()
+            when 'description'
+              message = "<b>Description</b><br><i>#{val.replace(/\n/g, '<br>')}</i>"
+            when 'state'
+              message = "<b>State</b> #{val}"
+            else
+              message = "#{key}: #{val}"
+
+        updates = [ "#{wrapId(record.id)} updated by #{record.author}" ]
+        color = 'green'
+        for key, val of record.change
+          updates.push (beautify key, val.new)
+          if key.toLowerCase() is 'state' then color = 'red'
+
+        { message: updates.join('<br>'), color }
+
     , (a, b) -> console.log a, b
 
   createContainer = () ->
