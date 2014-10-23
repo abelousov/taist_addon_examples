@@ -25,7 +25,7 @@
       # serverName = services.settings.youtrack.serverName;
       # TODO pass services.settings to the converter function;
       converter: (record) ->
-        color = 'green'
+        color = 'yellow'
         isResolved = false
 
         wrapId = (id) ->
@@ -40,20 +40,34 @@
             when 'resolved'
               message = ''
               isResolved = true
-            when 'state'
-              color = 'purple'
           message
 
-        updates = [ "#{wrapId(record.id)} updated by #{record.author}" ]
+        updates = [ "#{wrapId(record.id)} #{record.summary}<br>" ]
 
-        for key, val of record.change
-          updates.push (beautify key, val.new)
+        switch record.type
+          when 'fields'
+            color = 'purple'
+
+            for key, val of record.change
+              updates.push (beautify key, val.new)
+
+            updates.push "<br><i>updated by #{record.author}</i>"
+
+          when 'creation'
+            color = 'red'
+            updates.push "<i>created by #{record.author}</i>"
+
+          when 'comments'
+            color = 'yellow'
+            updates.push "<b>#{record.authorFullName}</b>"
+            updates.push record.text.replace(/\n/g, '<br>')
 
         result = [ { message: updates.join('<br>'), color } ]
 
         if isResolved
           result.push
-            message: '(beer)(beer)(beer)(beer)(beer)(beer)(beer)'
+            message: '(beer)(beer)(beer)(beer)(beer)(beer)(beer)(beer)(beer)(beer)'
+            color: 'green'
             format: 'text'
 
         result

@@ -23,7 +23,7 @@
       },
       converter: function(record) {
         var beautify, color, isResolved, key, result, updates, val, wrapId, _ref;
-        color = 'green';
+        color = 'yellow';
         isResolved = false;
         wrapId = function(id) {
           return "<a href=\"http://taist.myjetbrains.com/youtrack/issue/" + id + "\">" + id + "</a>";
@@ -38,17 +38,28 @@
             case 'resolved':
               message = '';
               isResolved = true;
-              break;
-            case 'state':
-              color = 'purple';
           }
           return message;
         };
-        updates = ["" + (wrapId(record.id)) + " updated by " + record.author];
-        _ref = record.change;
-        for (key in _ref) {
-          val = _ref[key];
-          updates.push(beautify(key, val["new"]));
+        updates = ["" + (wrapId(record.id)) + " " + record.summary + "<br>"];
+        switch (record.type) {
+          case 'fields':
+            color = 'purple';
+            _ref = record.change;
+            for (key in _ref) {
+              val = _ref[key];
+              updates.push(beautify(key, val["new"]));
+            }
+            updates.push("<br><i>updated by " + record.author + "</i>");
+            break;
+          case 'creation':
+            color = 'red';
+            updates.push("<i>created by " + record.author + "</i>");
+            break;
+          case 'comments':
+            color = 'yellow';
+            updates.push("<b>" + record.authorFullName + "</b>");
+            updates.push(record.text.replace(/\n/g, '<br>'));
         }
         result = [
           {
@@ -58,7 +69,8 @@
         ];
         if (isResolved) {
           result.push({
-            message: '(beer)(beer)(beer)(beer)(beer)(beer)(beer)',
+            message: '(beer)(beer)(beer)(beer)(beer)(beer)(beer)(beer)(beer)(beer)',
+            color: 'green',
             format: 'text'
           });
         }
