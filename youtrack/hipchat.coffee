@@ -57,11 +57,19 @@
 
     return hipChatPanel
 
+  findProperty = (object, pathString) ->
+    path = pathString.split('.')
+    result = object
+    for i in path
+      if result[i] then result = result[i] else return null
+    result
+
   createAddonInterface = () ->
     hipChatPanel = createContainer()
 
-    $('<h2>')
+    $('<div>')
       .text('HipChat Integration')
+      .addClass('notification__group__title')
       .appendTo(hipChatPanel)
 
     fields = [
@@ -70,20 +78,32 @@
         note: 'Имя сервера (YouTrack)'
         type: 'text'
       }
+      {
+        name: 'youtrack.login'
+        note: 'Login (YouTrack)'
+        type: 'text'
+      }
+      {
+        name: 'youtrack.password'
+        note: 'Password (YouTrack)'
+        type: 'password'
+      }
     ]
 
     for elem in fields
       div = $ '<div>'
       switch elem.type
-        when 'text'
-          $('<span>')
+        when 'text', 'password'
+          $('<label>')
             .addClass('taistLabel')
             .text(elem.note)
             .appendTo div
 
           $('<input>')
-            .attr('type', 'text')
+            .attr('type', elem.type)
             .attr('name', elem.name)
+            .addClass('jt-input')
+            .val(findProperty services.settings, elem.name)
             .appendTo div
 
       div.appendTo hipChatPanel
