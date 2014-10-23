@@ -22,8 +22,7 @@
       converter: (record) ->
         updates = []
         for key, val of record.change then updates.push "#{key}: #{val.new}"
-        console.log 'converter', updates
-        '#' + record.id + ' ' + updates.join()
+        'nittis #' + record.id + ' ' + updates.join()
     , (a, b) -> console.log a, b
 
   createContainer = () ->
@@ -64,6 +63,20 @@
       if result[i] then result = result[i] else return null
     result
 
+  updateProperty = (object, pathString, value) ->
+    path = pathString.split('.')
+    property = path.pop()
+    container = findProperty object, path.join('.')
+    container[property] = value
+
+  updateSettings = () ->
+    inputs = $('.taistInput')
+    for input in inputs
+      name = $(input).attr 'name'
+      value = $(input).val()
+      updateProperty services.settings, name, value
+    taistApi.companyData.set 'services.settings', services.settings, ->
+
   createAddonInterface = () ->
     hipChatPanel = createContainer()
 
@@ -75,12 +88,12 @@
     fields = [
       {
         name: 'youtrack.serverName'
-        note: 'Имя сервера (YouTrack)'
+        note: 'Server Name (YouTrack)'
         type: 'text'
       }
       {
         name: 'youtrack.login'
-        note: 'Login (YouTrack)'
+        note: 'User Name (YouTrack)'
         type: 'text'
       }
       {
@@ -88,6 +101,23 @@
         note: 'Password (YouTrack)'
         type: 'password'
       }
+      {
+        name: 'youtrack.projectId'
+        note: 'Project Id (YouTrack)'
+        type: 'text'
+      }
+
+      {
+        name: 'hipchat.authToken'
+        note: 'Auth Token (HipChat)'
+        type: 'password'
+      }
+      {
+        name: 'hipchat.room'
+        note: 'Room Name (HipChat)'
+        type: 'text'
+      }
+
     ]
 
     for elem in fields
@@ -102,16 +132,18 @@
           $('<input>')
             .attr('type', elem.type)
             .attr('name', elem.name)
-            .addClass('jt-input')
+            .addClass('jt-input taistInput')
             .val(findProperty services.settings, elem.name)
             .appendTo div
 
       div.appendTo hipChatPanel
 
     $('<button>')
-      .text('RUN')
+      .text('Create connection with HipChat')
+      .addClass('jt-button submit-btn taistButton')
       .appendTo(hipChatPanel)
       .click ->
+        updateSettings()
         linkServices()
 
   onSettingsLoaded = () ->
@@ -123,7 +155,7 @@
 
     taistApi.companyData.setCompanyKey getCompanyKey()
 
-    taistApi.companyData.get 'settings', (error, settings) ->
+    taistApi.companyData.get 'services.settings', (error, settings) ->
       defs =
         youtrack:
           serverName:'taist'
@@ -132,6 +164,7 @@
           projectId:'SH'
         hipchat:
           authToken: 'BGyWsdFa6mnfToP0isAUebV31534pPZ0OKzqI9vi'
+          room: 'YouTrack'
 
       services =
         settings: $.extend {}, defs, settings
