@@ -12,6 +12,7 @@
     location.host
 
   linkServices = () ->
+    services.settings.hipchat.greeting = 'Integration with YouTrack started'
     taistApi.services.link
       source:
         name: 'youtrack'
@@ -22,7 +23,7 @@
       converter: (record) ->
         updates = []
         for key, val of record.change then updates.push "#{key}: #{val.new}"
-        'nittis #' + record.id + ' ' + updates.join()
+        record.id + ' ' + updates.join()
     , (a, b) -> console.log a, b
 
   createContainer = () ->
