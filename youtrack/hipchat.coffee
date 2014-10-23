@@ -140,7 +140,7 @@
       div.appendTo hipChatPanel
 
     $('<button>')
-      .text('Create connection with HipChat')
+      .text('Launch integration')
       .addClass('jt-button submit-btn taistButton')
       .appendTo(hipChatPanel)
       .click ->
