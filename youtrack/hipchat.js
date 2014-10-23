@@ -22,35 +22,47 @@
         settings: services.settings.hipchat
       },
       converter: function(record) {
-        var beautify, color, key, updates, val, wrapId, _ref;
+        var beautify, color, isResolved, key, result, updates, val, wrapId, _ref;
+        color = 'green';
+        isResolved = false;
         wrapId = function(id) {
           return "<a href=\"http://taist.myjetbrains.com/youtrack/issue/" + id + "\">" + id + "</a>";
         };
         beautify = function(key, val) {
           var message;
+          message = "<b>" + key + ":</b> " + val;
           switch (key.toLowerCase()) {
             case 'description':
-              return message = "<b>Description</b><br><i>" + (val.replace(/\n/g, '<br>')) + "</i>";
+              message = "<b>Description</b><br><i>" + (val.replace(/\n/g, '<br>')) + "</i>";
+              break;
+            case 'resolved':
+              message = '';
+              isResolved = true;
+              break;
             case 'state':
-              return message = "<b>State</b> " + val;
-            default:
-              return message = "" + key + ": " + val;
+              color = 'purple';
           }
+          return message;
         };
         updates = ["" + (wrapId(record.id)) + " updated by " + record.author];
-        color = "green";
         _ref = record.change;
         for (key in _ref) {
           val = _ref[key];
           updates.push(beautify(key, val["new"]));
-          if (key.toLowerCase() === 'state') {
-            color = 'red';
-          }
         }
-        return {
-          message: updates.join('<br>'),
-          color: color
-        };
+        result = [
+          {
+            message: updates.join('<br>'),
+            color: color
+          }
+        ];
+        if (isResolved) {
+          result.push({
+            message: '(beer)(beer)(beer)(beer)(beer)(beer)(beer)',
+            format: 'text'
+          });
+        }
+        return result;
       }
     }, function(a, b) {
       return console.log(a, b);

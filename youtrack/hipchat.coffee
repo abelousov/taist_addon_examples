@@ -25,26 +25,38 @@
       # serverName = services.settings.youtrack.serverName;
       # TODO pass services.settings to the converter function;
       converter: (record) ->
+        color = 'green'
+        isResolved = false
 
         wrapId = (id) ->
           "<a href=\"http://taist.myjetbrains.com/youtrack/issue/#{id}\">#{id}</a>"
 
         beautify = (key, val) ->
+          message = "<b>#{key}:</b> #{val}"
+
           switch key.toLowerCase()
             when 'description'
               message = "<b>Description</b><br><i>#{val.replace(/\n/g, '<br>')}</i>"
+            when 'resolved'
+              message = ''
+              isResolved = true
             when 'state'
-              message = "<b>State</b> #{val}"
-            else
-              message = "#{key}: #{val}"
+              color = 'purple'
+          message
 
         updates = [ "#{wrapId(record.id)} updated by #{record.author}" ]
-        color = 'green'
+
         for key, val of record.change
           updates.push (beautify key, val.new)
-          if key.toLowerCase() is 'state' then color = 'red'
 
-        { message: updates.join('<br>'), color }
+        result = [ { message: updates.join('<br>'), color } ]
+
+        if isResolved
+          result.push
+            message: '(beer)(beer)(beer)(beer)(beer)(beer)(beer)'
+            format: 'text'
+
+        result
 
     , (a, b) -> console.log a, b
 
