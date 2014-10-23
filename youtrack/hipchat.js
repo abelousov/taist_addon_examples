@@ -158,7 +158,7 @@
       }
       div.appendTo(hipChatPanel);
     }
-    return $('<button>').text('Create connection with HipChat').addClass('jt-button submit-btn taistButton').appendTo(hipChatPanel).click(function() {
+    return $('<button>').text('Launch integration').addClass('jt-button submit-btn taistButton').appendTo(hipChatPanel).click(function() {
       updateSettings();
       return linkServices();
     });
