@@ -13,7 +13,7 @@
 
   linkServices = () ->
 
-    services.settings.hipchat.greeting = 'Integration with YouTrack started'
+    services.settings.hipchat.greeting = 'Congrats, integration is on! You don\'t need email anymore :)'
     taistApi.services.link
       source:
         name: 'youtrack'
