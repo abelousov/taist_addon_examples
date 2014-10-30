@@ -38,6 +38,7 @@
             when 'description'
               message = "<b>Description</b><br><i>#{val.replace(/\n/g, '<br>')}</i>"
             when 'resolved'
+              color = 'green'
               message = ''
               isResolved = true
           message

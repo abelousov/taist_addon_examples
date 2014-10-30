@@ -36,6 +36,7 @@
               message = "<b>Description</b><br><i>" + (val.replace(/\n/g, '<br>')) + "</i>";
               break;
             case 'resolved':
+              color = 'green';
               message = '';
               isResolved = true;
           }
