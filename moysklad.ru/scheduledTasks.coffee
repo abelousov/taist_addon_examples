@@ -285,15 +285,8 @@
       @_calendar.scrollToMoment task.start
 
   eventEditDialog =
-    _getUTCDiff: () ->
-      diff = new Date().toString().match(/GMT(.\d+)/)[1].replace(/30$/, 50)/100 * 3600 * 1000
-      diff = 0
-      @_getUTCDiff = () ->
-        diff
-      diff
-
     _convertEventDate: (stringDate) ->
-      new Date( new Date(stringDate).getTime() - @_getUTCDiff() )
+      new Date(stringDate)
 
     edit: (event, isNew, callback) ->
       dialogControls = @_createDialog isNew

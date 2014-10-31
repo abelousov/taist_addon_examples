@@ -367,17 +367,8 @@
 
   })();
   eventEditDialog = {
-    _getUTCDiff: function() {
-      var diff;
-      diff = new Date().toString().match(/GMT(.\d+)/)[1].replace(/30$/, 50) / 100 * 3600 * 1000;
-      diff = 0;
-      this._getUTCDiff = function() {
-        return diff;
-      };
-      return diff;
-    },
     _convertEventDate: function(stringDate) {
-      return new Date(new Date(stringDate).getTime() - this._getUTCDiff());
+      return new Date(stringDate);
     },
     edit: function(event, isNew, callback) {
       var dialogControls, timepickerSettings;
