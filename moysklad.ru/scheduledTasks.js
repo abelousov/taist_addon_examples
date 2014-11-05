@@ -372,7 +372,6 @@
       dialogControls = this._createDialog(isNew);
       dialogControls.nameInput.val(event.title);
       this._fillCalendarSelect(event, dialogControls.calendarSelect);
-      taistApi.log(event, event.start);
       setTimepickerValue = function(element, eventTime) {
         var timeZone, timepickerSettings, timepickerTime;
         timepickerSettings = {
@@ -443,6 +442,7 @@
       ($('body')).append(dialogElement);
       return dialogElement.dialog({
         dialogClass: "addonScheduledTasks-inDocEditDialog",
+        modal: true,
         closeOnEscape: true,
         buttons: [
           {
@@ -609,7 +609,7 @@
         if (event.editable) {
           return eventEditDialog.edit(event, false, (function(_this) {
             return function(editedTask) {
-              _this._calendar["do"]('renderEvent', event);
+              _this._calendar["do"]('updateEvent', event);
               return _this._updateTaskFromEvent(editedTask);
             };
           })(this));
@@ -679,6 +679,7 @@
     };
 
     Calendar.prototype["do"] = function() {
+      taistApi.log('do:', arguments);
       return this._calendarControl.fullCalendar.apply(this._calendarControl, arguments);
     };
 

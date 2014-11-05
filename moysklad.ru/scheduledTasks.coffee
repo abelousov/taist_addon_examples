@@ -291,8 +291,6 @@
       dialogControls.nameInput.val event.title
       @_fillCalendarSelect event, dialogControls.calendarSelect
 
-      taistApi.log event, event.start
-
       setTimepickerValue = (element, eventTime) ->
         timepickerSettings =
           timeFormat: 'H:i'
@@ -316,24 +314,6 @@
 
       setTimepickerValue dialogControls.timeStart, event.start
       setTimepickerValue dialogControls.timeEnd, event.end
-
-      # dialogControls.timeStart
-      #   .timepicker timepickerSettings
-      #   .timepicker 'setTime', event.start.toDate()
-      #   .on 'changeTime', ->
-      #     taistApi.log this.value,
-      #     time = this.value.split(/\D/)
-      #     event.start.set 'hour', time[0]
-      #     event.start.set 'minute', time[1]
-      #
-      # dialogControls.timeEnd
-      #   .timepicker timepickerSettings
-      #   .timepicker 'setTime', event.end.toDate()
-      #   .on 'changeTime', ->
-      #     taistApi.log this.value,
-      #     time = this.value.split(/\D/)
-      #     event.end.set 'hour', time[0]
-      #     event.end.set 'minute', time[1]
 
       @_showDialog dialogControls.dialog, =>
         event.title = dialogControls.nameInput.val()
@@ -375,6 +355,7 @@
       ($ 'body').append dialogElement
       dialogElement.dialog {
         dialogClass: "addonScheduledTasks-inDocEditDialog"
+        modal: true
         closeOnEscape: true
         buttons: [
           {
@@ -505,7 +486,7 @@
       if not ($ jsEvent.target).hasClass 'ownClickProcessing'
         if event.editable
           eventEditDialog.edit event, false, (editedTask) =>
-            @_calendar.do 'renderEvent', event
+            @_calendar.do 'updateEvent', event
             @_updateTaskFromEvent editedTask
 
     eventRender: (event, domElement) ->
@@ -544,6 +525,7 @@
       @_adjustToScreenHeight()
 
     do: ->
+      taistApi.log 'do:', arguments
       @_calendarControl.fullCalendar.apply @_calendarControl, arguments
 
     _renderCalendarDisplayFlags: ->
