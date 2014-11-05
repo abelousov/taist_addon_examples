@@ -285,34 +285,60 @@
       @_calendar.scrollToMoment task.start
 
   eventEditDialog =
-    _convertEventDate: (stringDate) ->
-      new Date(stringDate)
-
     edit: (event, isNew, callback) ->
       dialogControls = @_createDialog isNew
 
       dialogControls.nameInput.val event.title
       @_fillCalendarSelect event, dialogControls.calendarSelect
 
-      taistApi.log event
+      taistApi.log event, event.start
 
-      timepickerSettings =
-        timeFormat: 'H:i'
-        useSelect: true
-        minTime: '8:00am'
-        maxTime: '10:00pm'
+      setTimepickerValue = (element, eventTime) ->
+        timepickerSettings =
+          timeFormat: 'H:i'
+          useSelect: true
+          minTime: '6:00am'
+          maxTime: '10:00pm'
 
-      dialogControls.timeStart
-        .timepicker timepickerSettings
-        .timepicker 'setTime', @_convertEventDate event.start._i
+        timepickerTime = $.fullCalendar.moment eventTime
 
-      dialogControls.timeEnd
-        .timepicker timepickerSettings
-        .timepicker 'setTime', @_convertEventDate event.end._i
+        if isNew
+          timeZone = $.fullCalendar.moment().zone()
+          timepickerTime.add timeZone, 'minutes'
+
+        element.timepicker timepickerSettings
+          .timepicker 'setTime', timepickerTime.toDate()
+          .on 'changeTime', ->
+            time = this.value.split(/\D/)
+            taistApi.log time
+            eventTime.set 'hour', time[0]
+            eventTime.set 'minute', time[1]
+
+      setTimepickerValue dialogControls.timeStart, event.start
+      setTimepickerValue dialogControls.timeEnd, event.end
+
+      # dialogControls.timeStart
+      #   .timepicker timepickerSettings
+      #   .timepicker 'setTime', event.start.toDate()
+      #   .on 'changeTime', ->
+      #     taistApi.log this.value,
+      #     time = this.value.split(/\D/)
+      #     event.start.set 'hour', time[0]
+      #     event.start.set 'minute', time[1]
+      #
+      # dialogControls.timeEnd
+      #   .timepicker timepickerSettings
+      #   .timepicker 'setTime', event.end.toDate()
+      #   .on 'changeTime', ->
+      #     taistApi.log this.value,
+      #     time = this.value.split(/\D/)
+      #     event.end.set 'hour', time[0]
+      #     event.end.set 'minute', time[1]
 
       @_showDialog dialogControls.dialog, =>
         event.title = dialogControls.nameInput.val()
         event.calendarId = dialogControls.calendarSelect.val()
+        taistApi.log event
         callback event
 
     _createDialog: (isNew) ->

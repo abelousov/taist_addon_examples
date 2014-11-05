@@ -367,27 +367,40 @@
 
   })();
   eventEditDialog = {
-    _convertEventDate: function(stringDate) {
-      return new Date(stringDate);
-    },
     edit: function(event, isNew, callback) {
-      var dialogControls, timepickerSettings;
+      var dialogControls, setTimepickerValue;
       dialogControls = this._createDialog(isNew);
       dialogControls.nameInput.val(event.title);
       this._fillCalendarSelect(event, dialogControls.calendarSelect);
-      taistApi.log(event);
-      timepickerSettings = {
-        timeFormat: 'H:i',
-        useSelect: true,
-        minTime: '8:00am',
-        maxTime: '10:00pm'
+      taistApi.log(event, event.start);
+      setTimepickerValue = function(element, eventTime) {
+        var timeZone, timepickerSettings, timepickerTime;
+        timepickerSettings = {
+          timeFormat: 'H:i',
+          useSelect: true,
+          minTime: '6:00am',
+          maxTime: '10:00pm'
+        };
+        timepickerTime = $.fullCalendar.moment(eventTime);
+        if (isNew) {
+          timeZone = $.fullCalendar.moment().zone();
+          timepickerTime.add(timeZone, 'minutes');
+        }
+        return element.timepicker(timepickerSettings).timepicker('setTime', timepickerTime.toDate()).on('changeTime', function() {
+          var time;
+          time = this.value.split(/\D/);
+          taistApi.log(time);
+          eventTime.set('hour', time[0]);
+          return eventTime.set('minute', time[1]);
+        });
       };
-      dialogControls.timeStart.timepicker(timepickerSettings).timepicker('setTime', this._convertEventDate(event.start._i));
-      dialogControls.timeEnd.timepicker(timepickerSettings).timepicker('setTime', this._convertEventDate(event.end._i));
+      setTimepickerValue(dialogControls.timeStart, event.start);
+      setTimepickerValue(dialogControls.timeEnd, event.end);
       return this._showDialog(dialogControls.dialog, (function(_this) {
         return function() {
           event.title = dialogControls.nameInput.val();
           event.calendarId = dialogControls.calendarSelect.val();
+          taistApi.log(event);
           return callback(event);
         };
       })(this));
