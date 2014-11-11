@@ -137,11 +137,6 @@
 
     fields = [
       {
-        name: 'youtrack.serverName'
-        note: 'Server Name (YouTrack)'
-        type: 'text'
-      }
-      {
         name: 'youtrack.login'
         note: 'User Name (YouTrack)'
         type: 'text'
@@ -150,11 +145,6 @@
         name: 'youtrack.password'
         note: 'Password (YouTrack)'
         type: 'password'
-      }
-      {
-        name: 'youtrack.projectId'
-        note: 'Project Id (YouTrack)'
-        type: 'text'
       }
 
       {
@@ -203,22 +193,29 @@
     taistApi = _taistApi
     entryPoint = _entryPoint
 
+    if entryPoint isnt "options" then return false
+
     taistApi.companyData.setCompanyKey getCompanyKey()
 
     taistApi.companyData.get 'services.settings', (error, settings) ->
-      defs =
-        youtrack:
-          serverName:'taist'
-          login:'antonbelousov'
-          password:'@00x*psM0$5^'
-          projectId:'SH'
-        hipchat:
-          authToken: 'BGyWsdFa6mnfToP0isAUebV31534pPZ0OKzqI9vi'
-          room: 'YouTrack'
+      matches = location.href.match /\/\/([^.]+)\..+\/([^\/#]+)($|#)/
 
-      services =
-        settings: $.extend {}, defs, settings
+      if matches
+        defs =
+          youtrack:
+            serverName: ''
+            login: ''
+            password: ''
+            projectId: ''
+          hipchat:
+            authToken: ''
+            room: 'YouTrack'
 
-      onSettingsLoaded()
+        services =
+          settings: $.extend true, {}, defs, settings, youtrack:
+            serverName: matches[1]
+            projectId: matches[2]
+
+        onSettingsLoaded()
 
   {start}
