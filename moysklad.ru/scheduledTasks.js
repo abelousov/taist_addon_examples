@@ -495,7 +495,8 @@
     },
     defaultView: 'agendaWeek',
     minTime: '06:00',
-    maxTime: '23:00',
+    maxTime: '22:00',
+    eventStartEditable: true,
     events: function(start, end, unusedTimezone, callback) {
       var entityHashPath, event, eventsList, _i, _len;
       eventsList = taskStorage.getTasksForTimeRange(start, end);
@@ -505,6 +506,9 @@
         event.url = location.href.replace(location.hash, '#' + entityHashPath);
       }
       return callback(eventsList);
+    },
+    eventDrop: function(event) {
+      return taskStorage.update(event, function() {});
     }
   };
   EditableCalendarOptions = (function() {
@@ -520,6 +524,7 @@
       this._onUpdate = _onUpdate;
       this._inheritBaseOptions();
       this._bindPublicMethods();
+      this.eventStartEditable = false;
     }
 
     EditableCalendarOptions.prototype._inheritBaseOptions = function() {
@@ -570,7 +575,7 @@
       if (eventBelongsToCurrentEntity) {
         event.className += " addonScheduledTasks-calendarEventForCurrentEntity";
       }
-      return event.editable = eventBelongsToCurrentEntity;
+      return event.editable = event.startEditable = eventBelongsToCurrentEntity;
     };
 
     EditableCalendarOptions.prototype.selectable = true;

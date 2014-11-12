@@ -421,7 +421,8 @@
       right: 'agendaWeek,month'
     defaultView: 'agendaWeek'
     minTime: '06:00'
-    maxTime: '23:00'
+    maxTime: '22:00'
+    eventStartEditable: true
     events: (start, end, unusedTimezone, callback) ->
       eventsList = taskStorage.getTasksForTimeRange start, end
       for event in eventsList
@@ -429,6 +430,7 @@
         event.url = location.href.replace location.hash, '#' + entityHashPath
 
       callback eventsList
+    eventDrop: (event) -> taskStorage.update event, ->
 
   class EditableCalendarOptions
     _calendar: null
@@ -438,6 +440,8 @@
     constructor: (@_entityId, @_calendar, @_onUpdate) ->
       @_inheritBaseOptions()
       @_bindPublicMethods()
+
+      @eventStartEditable = false
 
     _inheritBaseOptions: ->
       # workaround not to use straightforward CoffeeScript inheritance
@@ -465,7 +469,7 @@
       if eventBelongsToCurrentEntity
         event.className += " addonScheduledTasks-calendarEventForCurrentEntity"
 
-      event.editable = eventBelongsToCurrentEntity
+      event.editable = event.startEditable = eventBelongsToCurrentEntity
 
     selectable: true
     selectHelper: true
