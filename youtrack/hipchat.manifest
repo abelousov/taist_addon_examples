@@ -1,0 +1,11 @@
+{
+  "siteRegexp": "*.myjetbrains.com",
+  "js": "hipchat.js",
+  "css": "hipchat.css",
+  "pages": [
+    {
+      "path": "/editProject/",
+      "entryPoint": "options"
+    }
+  ]
+}
