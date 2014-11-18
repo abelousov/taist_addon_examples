@@ -956,9 +956,17 @@
         return _results;
       },
       getProjectUuid: function(uuid, type, callback) {
+        var projectUuid;
         if (type !== 'customerorder') {
           if (typeof callback === "function") {
             callback(null);
+          }
+          return;
+        }
+        projectUuid = taistApi.localStorage.get(uuid);
+        if (projectUuid) {
+          if (typeof callback === "function") {
+            callback(projectUuid);
           }
           return;
         }
@@ -970,10 +978,10 @@
           };
           $.get("" + moyskladAPI + "/CustomerOrder/" + uuid).done((function(_this) {
             return function(xml) {
-              var projectUuid;
               projectUuid = $('customerOrder', xml).attr('projectUuid') || null;
               _this._uuidToProjectUuid[uuid].projectUuid = projectUuid;
               _this._uuidToProjectUuid[uuid].isInProgress = false;
+              taistApi.localStorage.set(uuid, projectUuid);
               return _this._resolveProjectUuidCallbacks(uuid);
             };
           })(this)).fail((function(_this) {

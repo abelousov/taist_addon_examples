@@ -738,6 +738,12 @@
           callback? null
           return
 
+        projectUuid = taistApi.localStorage.get uuid
+
+        if projectUuid
+          callback? projectUuid
+          return
+
         if not @_uuidToProjectUuid[uuid]
           @_uuidToProjectUuid[uuid] =
             callbacks: []
@@ -749,6 +755,7 @@
             projectUuid = $('customerOrder', xml).attr('projectUuid') || null
             @_uuidToProjectUuid[uuid].projectUuid = projectUuid
             @_uuidToProjectUuid[uuid].isInProgress = false
+            taistApi.localStorage.set uuid, projectUuid
             @_resolveProjectUuidCallbacks uuid
           .fail () =>
             @_uuidToProjectUuid[uuid].isInProgress = false
