@@ -1,4 +1,5 @@
 {
+  "id": "taist-hello-world"
   "js": "hello_world.js",
   "siteRegexp": "ya.ru"
 }
