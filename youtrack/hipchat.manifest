@@ -1,5 +1,5 @@
 {
-  "id": "youtrack-hipchat"
+  "id": "youtrack-hipchat",
   "siteRegexp": "*.myjetbrains.com",
   "js": "hipchat.js",
   "css": "hipchat.css",
