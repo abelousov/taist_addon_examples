@@ -5,7 +5,7 @@
   "siteRegexp": "crunchbase.com",
   "js": "crunchbaseExport.js",
   "css": "crunchbaseExport.css",
-  "description": "crunchbaseExport.md"
+  "description": "crunchbaseExport.md",
   "shortDescription": "Exports company profiles to Google Docs.",
   "pages": [
     {
