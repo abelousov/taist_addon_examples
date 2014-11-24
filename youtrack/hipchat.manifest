@@ -4,6 +4,7 @@
   "siteRegexp": "*.myjetbrains.com",
   "js": "hipchat.js",
   "css": "hipchat.css",
+  "shortDescription": "Addon adds integration with HipChat (group chat service): you enable it for any project in YouTrack, and all the activity for that project is sent to a room in HipChat. This allows you to get single real-time activity feed and frees you from wandering through email",
   "pages": [
     {
       "path": "/editProject/",
