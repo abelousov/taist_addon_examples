@@ -9,7 +9,7 @@
   "shortDescription": "Exports company profiles to Google Docs.",
   "pages": [
     {
-      "path": "/organization/+",
+      "path": "/organization/.+",
       "entryPoint": "companyPage"
     }
   ]
