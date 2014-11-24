@@ -1,0 +1,16 @@
+{
+  "id": "crunchbase-export-proto",
+  "title": "[Prototype] CrunchBase export",
+  "siteName": "CrunchBase",
+  "siteRegexp": "crunchbase.com",
+  "js": "crunchbaseExport.js",
+  "css": "crunchbaseExport.css",
+  "description": "crunchbaseExport.md"
+  "shortDescription": "Exports company profiles to Google Docs.",
+  "pages": [
+    {
+      "path": "/editProject/",
+      "entryPoint": "options"
+    }
+  ]
+}
