@@ -9,8 +9,8 @@
   "shortDescription": "Exports company profiles to Google Docs.",
   "pages": [
     {
-      "path": "/editProject/",
-      "entryPoint": "options"
+      "path": "/organization/+",
+      "entryPoint": "companyPage"
     }
   ]
 }
