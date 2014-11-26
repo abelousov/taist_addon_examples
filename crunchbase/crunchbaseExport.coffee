@@ -10,13 +10,20 @@
         drawExportButton()
 
   drawExportButton = ->
-    previousButtonClass = 'follow_button'
+    followContainer = $(".follow-container")
+    exportContainer = followContainer.clone false
 
-    exportButton = jQuery '<input />',
-      title: 'Export'
-      value: 'Export'
-      type: 'submit'
-      "class": previousButtonClass + " exportButton"
+    $('div', exportContainer).hide()
+      # .css
+      #   left: - followContainer.width() - 16 + 7
+
+    $('input', exportContainer)
+      .attr 'title', 'Export'
+      .attr 'value', 'Export'
+      # .addClass 'exportButton'
+      .css
+        position: 'absolute'
+        left: - followContainer.width() - 16
 
       click: ->
         successMessage.hide()
@@ -25,10 +32,10 @@
 
         return false
 
-    (jQuery '.' + previousButtonClass).after exportButton
+    followContainer.parents('.action-container').prepend exportContainer
 
     successMessage = jQuery """<a href="#{resultsTableUrl}" target="_blank">succeeded</a>"""
-    exportButton.after successMessage
+    exportContainer.before successMessage
     successMessage.hide()
 
   exportCompanyData = (callback) ->

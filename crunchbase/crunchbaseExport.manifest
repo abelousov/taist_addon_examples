@@ -4,13 +4,24 @@
   "siteName": "CrunchBase",
   "siteRegexp": "crunchbase.com",
   "js": "crunchbaseExport.js",
-  "css": "crunchbaseExport.css",
-  "description": "crunchbaseExport.md",
   "shortDescription": "Exports company profiles to Google Docs.",
   "pages": [
     {
-      "path": "/organization/.+",
+      "path": "/organization/",
       "entryPoint": "companyPage"
     }
   ]
+}
+{
+  "detailedDescription": "",
+  "id": "atlassian-jira-parentdescription",
+  "shortDescription": "Adds parent description to sub-task screen",
+  "siteName": "Jira OnDemand",
+  "siteRegexp": "*.atlassian.net",
+  "title": "Show parent description",
+  "screenshots": [{
+    "url": "http://www.ucarecdn.com/e190151e-f7af-4d0e-9973-756c4d3ea5f2/-/crop/1046x785/0,115/",
+    "caption": "Temp",
+    "number": 1
+  }]
 }
