@@ -1,0 +1,20 @@
+{
+  "id": "moysklad-scheduled-tasks",
+  "shortDescription": "Добавляет календарь, в котором можно планировать задачи по любому документу, компании или любой другой сущности",
+  "siteName": "МойСклад",
+  "siteRegexp": "online.moysklad.ru",
+  "title": "Календарь задач",
+  "js": "scheduledTasks.js",
+  "css": "scheduledTasks.css",
+  "description": "scheduledTasks.md",
+  "pages": [
+    {
+      "path": "^/app/$",
+      "entryPoint": "user"
+    },
+       {
+         "path": "^/app/admin/$",
+         "entryPoint": "admin"
+       }
+  ]
+}
