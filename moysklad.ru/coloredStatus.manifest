@@ -1,0 +1,38 @@
+{
+  "id": "coloredstatus",
+  "title": "Цветные статусы",
+  "siteName": "МойСклад",
+  "siteRegexp": "online.moysklad.ru",
+  "js": "coloredStatus.js",
+  "css": "coloredStatus.css",
+  "description": "coloredStatus.md",
+  "shortDescription": "Позволяет раскрашивать документы в таблицах в зависимости от их статуса",
+  "pages": [
+    {
+      "path": "^/app/$",
+      "entryPoint": "user"
+    },
+    {
+      "path": "^/app/admin/$",
+      "entryPoint": "admin"
+    }
+  ]
+}
+
+  "config": "{\"pages\": [\n\t{\n\t\t\"path\": \"^/app/$\",\n\t\t\"entryPoint\": \"user\"\n\t},\n\t{\n\t\t\"path\": \"^/app/admin/$\",\n\t\t\"entryPoint\": \"admin\"\n\t}\n\n]}\n",
+  "detailedDescription": "## Описание\nАддон позволяет присвоить каждому статусу документа свой цвет - в соответствии с ним будут раскрашены строки в таблице документов.\nРаботает аналогично встроенной возможности раскрашивания статусов, но красит всю строку в таблице - это помогает быстрее ориентироваться в большом количестве документов.\n\n### Настройка - аналогично встроенным статусам:\n1. заходите в [Администрирование - Статусы](https://online.moysklad.ru/app/admin/#states)\n2. возле каждого статуса отображается иконка выбора цвета, заменяющая встроенную иконку - с ее помощью задаете цвета",
+  "siteName": "МойСклад",
+  "siteRegexp": "online.moysklad.ru",
+  "screenshots": [{
+    "url": "http://www.ucarecdn.com/741533fd-bd60-4f01-b48e-ec9b290f91c4/-/crop/972x729/0,171/",
+    "caption": "Настройка",
+    "number": 2
+  }, {
+    "caption": "Старые статусы",
+    "url": "http://www.ucarecdn.com/96cd564c-f318-4b5b-9bb9-99ce0e8e0f0e/-/crop/977x733/210,167/",
+    "number": 1
+  }, {
+    "url": "http://www.ucarecdn.com/2e0ae5f7-efc1-4a16-a328-63157451fef5/-/crop/968x726/0,174/",
+    "caption": "Результат",
+    "number": 3
+  }]
