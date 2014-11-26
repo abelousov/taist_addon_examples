@@ -1,0 +1,14 @@
+{
+  "id": "inprogress",
+  "title": "[Under construction] In Progress",
+  "shortDescription": "[Addon is being updated to fit radical changes of Wrike frontend]\n\nAllows to mark tasks that are in progress and list them in a separate widget.",
+  "siteName": "Wrike",
+  "siteRegexp": "wrike.com",
+  "js": "inprogress.js",
+  "css": "inprogress.css",
+  "pages":[
+    {
+      "path": "^/workspace"
+    }
+  ]
+}

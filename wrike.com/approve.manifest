@@ -1,0 +1,15 @@
+{
+  "id": "approve",
+  "shortDescription": "Allows to send tasks on approval: responsible person sends task to a manager for approval, and manager can approve or decline it (return for further work).",
+  "siteName": "Wrike",
+  "siteRegexp": "wrike.com",
+  "title": "Approval",
+  "js": "approve.js",
+  "css": "approve.css",
+  "description": "approve.md",
+  "pages": [
+    {
+      "path": "^/workspace"
+    }
+  ]
+}
