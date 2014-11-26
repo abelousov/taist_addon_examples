@@ -5,6 +5,7 @@
   "siteRegexp": "github.com",
   "js": "issuesComponents.js",
   "css": "issuesComponents.css",
+  "description": "issuesComponents.md",
   "shortDescription": "Adds \"Components\" entity for issues like JIRA and other trackers",
   "pages": [
     {
