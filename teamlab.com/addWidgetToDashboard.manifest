@@ -1,0 +1,14 @@
+{
+  "id": "teamlab-overdue-widget",
+  "shortDescription": "Adds list of overdue tasks to the main dashboard",
+  "siteName": "Teamlab",
+  "siteRegexp": "*.teamlab.eu.com",
+  "title": "Overdue tasks widget",
+  "js": "addWidgetToDashboard.js",
+  "description": "addWidgetToDashboard.md",
+  "pages":[
+    {
+      "path": "^\/$"
+    }
+  ]
+}
