@@ -4,5 +4,5 @@
   "siteName": "Jira OnDemand",
   "siteRegexp": "*.atlassian.net",
   "js": "Jira_parent_task_description",
-  "shortDescription": "Adds parent description to sub-task screen",
+  "shortDescription": "Adds parent description to sub-task screen"
 }
