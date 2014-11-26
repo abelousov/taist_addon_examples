@@ -1,0 +1,24 @@
+{
+  "id": "github-issues-components",
+  "title": "Components",
+  "siteName": "Github",
+  "siteRegexp": "github.com",
+  "js": "issuesComponents.js",
+  "css": "issuesComponents.css",
+  "shortDescription": "Adds \"Components\" entity for issues like JIRA and other trackers",
+  "pages": [
+    {
+      "path": "^(/\\w+){2}/issues/\\d+",
+      "entryPoint": "editIssue"
+    }, {
+      "path": "^(/\\w+){2}/issues/new",
+      "entryPoint": "createIssue"
+    }, {
+      "path": "^(/\\w+){2}/issues",
+      "entryPoint": "showIssues"
+    }, {
+      "path": "^(/\\w+){2}",
+      "entryPoint": "anyOther"
+    }
+  ]
+}
