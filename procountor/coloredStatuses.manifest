@@ -1,0 +1,9 @@
+{
+  "id": "procountor-colored-statuses",
+  "shortDescription": "Colors documents in tables according to their statuses",
+  "siteName": "Procountor",
+  "siteRegexp": "secure.procountor.com",
+  "title": "Colored statuses",
+  "js": "coloredStatuses.js",
+  "description": "coloredStatuses.md"
+}
