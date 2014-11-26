@@ -1,8 +1,11 @@
 ->
   taistApi = null
   moyskladUtils = null
+  projectsStorage = null
   taskStorage = null
   entryPoint = null
+
+  moyskladAPI = 'https://online.moysklad.ru/exchange/rest/ms/xml'
 
   start = (_taistApi, _entryPoint) ->
     taistApi = _taistApi
@@ -24,10 +27,11 @@
       taistApi.companyData.setCompanyKey companyKey
       calendarStorage.init ->
         taskStorage.init ->
-          calendarDisplay.init callback
+          projectsStorage.init ->
+            calendarDisplay.init callback
 
   getCompanyKey = (cb) ->
-    $.get('https://online.moysklad.ru/exchange/rest/ms/xml/MyCompany/list/?count=1')
+    $.get("#{moyskladAPI}/MyCompany/list/?count=1")
       .done (xml) ->
         cb $('accountUuid:first', xml).text()
 
@@ -423,9 +427,19 @@
     minTime: '06:00'
     maxTime: '22:00'
     eventStartEditable: true
+
+    eventAfterRender: (event, element, view) ->
+      console.log 'AfterRender', event
+      moyskladUtils.api.getProjectUuid event.entityId, event.taskData.entityType, (projectUuid) ->
+        if projectUuid
+          color = projectsStorage.getProjectColor projectUuid
+          element.addClass 'bg' + color
+
     events: (start, end, unusedTimezone, callback) ->
+      ts = new Date().getTime()
+      i = 0
       eventsList = taskStorage.getTasksForTimeRange start, end
-      for event in eventsList
+      for event in eventsList then do (event) ->
         entityHashPath = event.taskData.entityType + '/edit?id=' + event.entityId
         event.url = location.href.replace location.hash, '#' + entityHashPath
 
@@ -464,7 +478,7 @@
       taskStorage.update event, =>
         @_onUpdate()
     _decorateFreshlyCreatedEvent: (event) ->
-      event.className = "addonScheduledTasks-calendarEvent"
+      event.className += " addonScheduledTasks-calendarEvent"
       eventBelongsToCurrentEntity = event.entityId is @_entityId
       if eventBelongsToCurrentEntity
         event.className += " addonScheduledTasks-calendarEventForCurrentEntity"
@@ -592,6 +606,32 @@
 
     _generateId: -> Math.random().toString()
 
+  projectsStorage =
+    _projectsDataKey: 'projectsData'
+    _projectsData: null
+
+    _backgroundColorsString: "BlanchedAlmond,DeepPeach,SandyBrown,DarkTangerine,Fulvous,Copper,UniversityOfCaliforniaGold,Brass,HeartGold,SapGreen,SeaGreen,TropicalRainForest,Teal,PersianGreen,MediumSeaGreen,DarkSeaGreen,TeaGreen,PaleLavender,BrilliantLavender,ClassicRose,PastelMagenta,RuddyPink,BrinkPink,Cerise,RichMaroon,VividBurgundy,PansyPurple,AntiqueFuchsia,TurkishRose,LavenderPurple,Toolbox,BrandeisBlue,BleuDeFrance,Cerulean,BondiBlue,SpiroDiscoBall,LightPastelPurple,Melon,DarkSalmon,LapisLazuli";
+    _backgroundColors: []
+
+    init: (callback) ->
+      @_backgroundColors = @_backgroundColorsString.split ','
+      taistApi.companyData.get @_projectsDataKey, (projectsData) =>
+        @_projectsData = projectsData ? {}
+        console.log @_projectsData
+        callback()
+
+    _save: ->
+      taistApi.companyData.set @_projectsDataKey, @_projectsData, ->
+
+    getProjectColor: (uuid) ->
+      if not @_projectsData[uuid]?.color
+        colorNum = Object.keys(@_projectsData).length
+        color = @_backgroundColors[colorNum%@_backgroundColors.length]
+        @_projectsData[uuid] = {color}
+        @_save()
+
+      @_projectsData[uuid].color
+
   taskStorage =
     _taskDataKey: 'entityTaskData'
     _tasksData: null
@@ -685,6 +725,46 @@
       # but we will use single selector for everything including admin part
       # it should always return one element
       @_getMainPanel().find '> tbody > tr:nth-child(3) > td > *'
+
+    api:
+      _uuidToProjectUuid: {}
+      _resolveProjectUuidCallbacks: (uuid) ->
+        while @_uuidToProjectUuid[uuid].callbacks.length > 0
+          callback = @_uuidToProjectUuid[uuid].callbacks.pop()
+          callback @_uuidToProjectUuid[uuid].projectUuid
+
+      getProjectUuid: (uuid, type, callback) ->
+        if type isnt 'customerorder'
+          callback? null
+          return
+
+        projectUuid = taistApi.localStorage.get uuid
+
+        if projectUuid
+          callback? projectUuid
+          return
+
+        if not @_uuidToProjectUuid[uuid]
+          @_uuidToProjectUuid[uuid] =
+            callbacks: []
+            isInProgress: true
+            projectUuid: null
+
+          $.get "#{moyskladAPI}/CustomerOrder/#{uuid}"
+          .done (xml) =>
+            projectUuid = $('customerOrder', xml).attr('projectUuid') || null
+            @_uuidToProjectUuid[uuid].projectUuid = projectUuid
+            @_uuidToProjectUuid[uuid].isInProgress = false
+            taistApi.localStorage.set uuid, projectUuid
+            @_resolveProjectUuidCallbacks uuid
+          .fail () =>
+            @_uuidToProjectUuid[uuid].isInProgress = false
+            @_resolveProjectUuidCallbacks uuid
+
+        if @_uuidToProjectUuid[uuid].isInProgress
+          @_uuidToProjectUuid[uuid].callbacks.push callback
+        else
+          callback? @_uuidToProjectUuid[uuid].projectUuid
 
     topMenu:
       addMenuItemWithoutSubItems: (itemName, contentRenderer) ->
