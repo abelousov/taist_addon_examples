@@ -1,5 +1,8 @@
 {
   "id": "taist-hello-world",
   "js": "hello_world.js",
-  "siteRegexp": "ya.ru"
+  "title": "Hello ",
+  "siteName": "Github",
+  "siteRegexp": "github.com",
+  "shortDescription": "Taist 'Hello World' sample"
 }
