@@ -85,7 +85,7 @@
 
       _renderButtonsToolbar: ->
         originalToolbar = $ @_originalToolbarSelector
-        buttonsToolbar = (originalToolbar).clone()
+        buttonsToolbar = $ '<div>'
         buttonsToolbar.empty()
         buttonsToolbar.attr 'id', @_buttonsToolbarId
         originalToolbar.after buttonsToolbar

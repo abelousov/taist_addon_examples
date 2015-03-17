@@ -1,5 +1,11 @@
 #wrike-taist-toolbar {
   padding-left: 20px;
+  margin-bottom: 4px;
+}
+
+#wrike-taist-toolbar .wspace-task-settings-button {
+  height: 28px;
+  line-height: 28px;
 }
 
 .taist-wrike-approval-button {
