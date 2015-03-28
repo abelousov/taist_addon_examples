@@ -16,7 +16,7 @@
         taistApi.companyData.setCompanyKey @_getCompanyKey()
         @_loadColorData callback
 
-    _getCompanyKey: -> $('.companyName>span').text()
+    _getCompanyKey: -> 'companyKeyStub'
 
     _colorsKey: 'stateColors'
 
@@ -38,7 +38,8 @@
 
   rowsPainter =
     watchForRowsToRedraw: ->
-      taistApi.wait.elementRender (=> @_getDocsTable().find """tbody tr"""), (row) => @_redrawRow row
+      taistApi.wait.elementRender (=> @_getDocsTable().find """tbody tr"""), (row) =>
+        @_redrawRow row
 
     _redrawRow: (row) ->
       stateColumnIndex = @_getStateColumnIndex @_getDocsTable()
