@@ -2,12 +2,10 @@
   taistApi = null
 
   start = (_taistApi, entryPoint) ->
-    taistApi = _taistApi
+    window._api = taistApi = _taistApi
     colorsStorage.init ->
-      if entryPoint is 'user'
-        rowsPainter.watchForRowsToRedraw()
-      else
-        settingsUI.waitToRedraw()
+      settingsUI.waitToRedraw()
+      rowsPainter.watchForRowsToRedraw()
 
   colorsStorage =
     _stateColors: {}
@@ -83,9 +81,12 @@
       taistApi.wait.change @_getCurrentDocType, callback
 
     _getCurrentDocType: ->
-      if location.hash is '#states' and (docTypeText = $('.gwt-TreeItem-selected').text()).length > 0 then docTypeText else null
+      if $('.b-right-popup-title').text() is 'Настройка статусов'
+        location.hash
+      else
+        null
 
-    _saveButtonSelector: '.b-popup-button-green'
+    _saveButtonSelector: '.right-popup-panel .b-popup-button-green'
 
     _getStateInputs: -> $('input.gwt-TextBox[size="40"]')
 
@@ -111,6 +112,8 @@
     _setInputColor: (input, color) -> input.css {background: color}
 
     _changeStateColor: (input, newColor) ->
+      console.log @_getCurrentDocType()
+      getCurrentDocType
       colorsStorage.storeColor @_getCurrentDocType(), (@_getStateFromInput input), newColor, =>
         @_updateStateInputWithStoredColor input
 
@@ -147,9 +150,15 @@
 
     if (!colourPicker.length)
       colourPicker = jQuery('<div id="' + config.id + '"></div>').appendTo(document.body).hide()
-      jQuery(document.body).click (event)->
+
+      onClick = (event) ->
         if (!(jQuery(event.target).is('#' + config.id) || jQuery(event.target).parents('#' + config.id).length))
           colourPicker.hide(config.speed)
+        else
+          console.log 'onClick'
+          # event.stopPropagation()
+
+      document.body.addEventListener 'click', onClick, false
 
     return this.each ()->
       select = jQuery(this)

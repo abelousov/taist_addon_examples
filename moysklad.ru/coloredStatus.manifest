@@ -6,15 +6,5 @@
   "js": "coloredStatus.js",
   "css": "coloredStatus.css",
   "description": "coloredStatus.md",
-  "shortDescription": "Позволяет раскрашивать документы в таблицах в зависимости от их статуса",
-  "pages": [
-    {
-      "path": "^/app/$",
-      "entryPoint": "user"
-    },
-    {
-      "path": "^/app/admin/$",
-      "entryPoint": "admin"
-    }
-  ]
+  "shortDescription": "Позволяет раскрашивать документы в таблицах в зависимости от их статуса"
 }
