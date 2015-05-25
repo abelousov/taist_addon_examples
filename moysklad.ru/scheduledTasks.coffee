@@ -860,7 +860,7 @@
       _restoreSubMenu: -> @_getSubMenu().show()
 
       _renderNewTopMenuItem: (topMenu, itemName) ->
-        menuItem = $ """<td class="#{@_topMenuItemClass} #{@_customMenuItemClass}"><span title="#{itemName}" class="lognex-SpanHyperlink" tabindex="0"><a>#{itemName}</a></span></td>"""
+        menuItem = $ """<td class="#{@_topMenuItemClass} #{@_customMenuItemClass}"><span title="#{itemName}" class="lognex-SpanHyperlink my-style tutorial-chapter-tab" tabindex="0"><a><span class="text">#{itemName}</span></a></span></td>"""
         itemsSeparator = $ '<td class="topMenu-separator"></td>'
         topMenu.append menuItem, itemsSeparator
 
