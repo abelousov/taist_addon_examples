@@ -18,7 +18,6 @@
         };
       })(this)), (function(_this) {
         return function() {
-          taistApi.companyData.setCompanyKey(_this._getCompanyKey());
           return _this._loadColorData(callback);
         };
       })(this));
@@ -123,8 +122,14 @@
       return taistApi.wait.change(this._getCurrentDocType, callback);
     },
     _getCurrentDocType: function() {
+      var matches;
       if ($('.b-right-popup-title').text() === 'Настройка статусов') {
-        return location.hash;
+        matches = location.hash.match(/#([a-z]+)(\/|$)/);
+        if ((matches != null ? matches[1] : void 0) != null) {
+          return docTypesByHashes[matches[1]];
+        } else {
+          return null;
+        }
       } else {
         return null;
       }
@@ -175,8 +180,6 @@
       });
     },
     _changeStateColor: function(input, newColor) {
-      console.log(this._getCurrentDocType());
-      getCurrentDocType;
       return colorsStorage.storeColor(this._getCurrentDocType(), this._getStateFromInput(input), newColor, (function(_this) {
         return function() {
           return _this._updateStateInputWithStoredColor(input);
@@ -224,7 +227,8 @@
       colourPicker = jQuery('<div id="' + config.id + '"></div>').appendTo(document.body).hide();
       onClick = function(event) {
         if (!(jQuery(event.target).is('#' + config.id) || jQuery(event.target).parents('#' + config.id).length)) {
-          return colourPicker.hide(config.speed);
+          colourPicker.hide(config.speed);
+          return event.stopPropagation();
         } else {
           return console.log('onClick');
         }

@@ -11,7 +11,6 @@
     _stateColors: {}
     init: (callback) ->
       taistApi.wait.once (=> @_getCompanyKey().length > 0), =>
-        taistApi.companyData.setCompanyKey @_getCompanyKey()
         @_loadColorData callback
 
     _getCompanyKey: -> 'companyKeyStub'
@@ -82,7 +81,8 @@
 
     _getCurrentDocType: ->
       if $('.b-right-popup-title').text() is 'Настройка статусов'
-        location.hash
+        matches = location.hash.match /#([a-z]+)(\/|$)/
+        if matches?[1]? then docTypesByHashes[matches[1]] else null
       else
         null
 
@@ -112,8 +112,6 @@
     _setInputColor: (input, color) -> input.css {background: color}
 
     _changeStateColor: (input, newColor) ->
-      console.log @_getCurrentDocType()
-      getCurrentDocType
       colorsStorage.storeColor @_getCurrentDocType(), (@_getStateFromInput input), newColor, =>
         @_updateStateInputWithStoredColor input
 
@@ -154,6 +152,7 @@
       onClick = (event) ->
         if (!(jQuery(event.target).is('#' + config.id) || jQuery(event.target).parents('#' + config.id).length))
           colourPicker.hide(config.speed)
+          event.stopPropagation()
         else
           console.log 'onClick'
           # event.stopPropagation()
