@@ -2,7 +2,7 @@
   "id": "coloredstatus",
   "title": "Цветные статусы",
   "siteName": "МойСклад",
-  "siteRegexp": "online.moysklad.ru",
+  "siteRegexp": "online\\.moysklad\\.ru\\/app",
   "js": "coloredStatus.js",
   "css": "coloredStatus.css",
   "description": "coloredStatus.md",
