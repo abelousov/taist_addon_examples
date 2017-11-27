@@ -1,8 +1,9 @@
-Taist - addon examples
-======================
+Taist - in-house addons
+=======================
+This repository contains code of some addons build on [Taist](http://tai.st) platform by Taist team.
 
-Here is the code of working [Taist](http://tai.st) addons created by Taist team.
+All addons can be used via [Taist marketplace](http://tai.st/addons).
 
-Feel free to fork or just copy code to use it in your own addons.
+You can use this code in any way to create your own addons.
 
 Ask any questions by creating an issue.
